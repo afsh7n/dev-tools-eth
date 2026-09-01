@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dev tools — address, scan, sign</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.15.0/dist/ethers.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a222c;
+      --line: #2a3644;
+      --text: #e8eef4;
+      --muted: #8b9aab;
+      --accent: #3d9cf0;
+      --ok: #3ecf8e;
+      --err: #f07178;
+      --warn: #e6c07b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.45 ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      padding: 20px 24px 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    header h1 { margin: 0 0 6px; font-size: 18px; font-weight: 650; }
+    header p { margin: 0; color: var(--muted); max-width: 72ch; }
+    main {
+      display: grid;
+      gap: 16px;
+      padding: 16px 24px 32px;
+      max-width: 1100px;
+    }
+    @media (min-width: 900px) {
+      main { grid-template-columns: 1fr 1fr; }
+      .wide { grid-column: 1 / -1; }
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    h2 { margin: 0 0 12px; font-size: 15px; }
+    label { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 4px; }
+    input, textarea, select {
+      width: 100%;
+      background: #0f1419;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    button {
+      background: var(--accent);
+      color: #061018;
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    button.secondary { background: #2a3644; color: var(--text); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+    .ok { color: var(--ok); }
+    .err { color: var(--err); }
+    .warn { color: var(--warn); }
+    .key { filter: blur(5px); }
+    .key.show { filter: none; }
+    pre {
+      margin: 10px 0 0;
+      background: #0f1419;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      overflow: auto;
+      font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Dev tools</h1>
+    <p>
+      One local HTML file. Address + sign run in the browser with <code>ethers</code> (CDN).
+      Native gRPC cannot run in a page, so Scan/Collect build the exact proto JSON for Postman or grpcurl.
+    </p>
+  </header>
+  <main>
+    <section>
+      <h2>1. Address</h2>
+      <label>Address</label>
+      <input id="address" readonly placeholder="Generate or paste a key" />
+      <label>Private key</label>
+      <input id="privateKey" class="key" readonly placeholder="0x…" />
+      <div class="actions">
+        <button type="button" id="btnGenerate">Generate</button>
+        <button type="button" class="secondary" id="btnToggleKey">Show key</button>
+        <button type="button" class="secondary" id="btnDownload">Download JSON</button>
+        <button type="button" class="secondary" id="btnLoad">Load JSON</button>
+        <input id="file" type="file" accept="application/json,.json" hidden />
+      </div>
+      <p class="hint warn">Key never leaves this tab. Do not commit wallet.json.</p>
+      <p id="walletStatus" class="hint"></p>
+    </section>
+
+    <section>
+      <h2>2. Scan (watch-list ADD)</h2>
+      <label>Address to watch</label>
+      <input id="scanAddress" placeholder="Uses generated address if empty" />
+      <div class="actions">
+        <button type="button" id="btnScan">Build BatchUpdateAddresses JSON</button>
+        <button type="button" class="secondary" id="btnCopyScan">Copy</button>
+      </div>
+      <p class="hint">gRPC: <code>ethereum_scanner.AddressService/BatchUpdateAddresses</code> + metadata <code>x-api-key</code></p>
+      <pre id="scanOut"></pre>
+    </section>
+
+    <section class="wide">
+      <h2>3. Sign Collect tx</h2>
+      <div class="row">
+        <div>
+          <label>to_address</label>
+          <input id="to" placeholder="0x recipient" />
+        </div>
+        <div>
+          <label>amount (Atomic Unit integer)</label>
+          <input id="amount" placeholder="1000000000000000000" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>nonce</label>
+          <input id="nonce" value="0" />
+        </div>
+        <div>
+          <label>token_id</label>
+          <input id="tokenId" value="1" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>ERC-20 contract (empty = native ETH)</label>
+          <input id="contract" placeholder="0xdac17f…" />
+        </div>
+        <div>
+          <label>chainId</label>
+          <input id="chainId" value="1" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>gasLimit</label>
+          <input id="gasLimit" placeholder="21000 native / 65000 ERC-20" />
+        </div>
+        <div>
+          <label>maxFeePerGas (wei)</label>
+          <input id="maxFee" value="1000000000" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>maxPriorityFeePerGas (wei)</label>
+          <input id="priorityFee" value="1000000000" />
+        </div>
+        <div>
+          <label>gasPrice (set = legacy type-0)</label>
+          <input id="gasPrice" placeholder="leave empty for EIP-1559" />
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" id="btnSign">Sign Collect item</button>
+        <button type="button" class="secondary" id="btnCollect">Build CollectRequest JSON</button>
+        <button type="button" class="secondary" id="btnCopySign">Copy last JSON</button>
+      </div>
+      <p id="signStatus" class="hint"></p>
+      <pre id="signOut"></pre>
+    </section>
+  </main>
+  <script>
+    const ATOMIC = /^(0|[1-9][0-9]{0,64})$/;
+    const TOKEN_ID = /^[1-9][0-9]*$/;
+    const ERC20 = new ethers.Interface(["function transfer(address to, uint256 amount)"]);
+
+    const $ = (id) => document.getElementById(id);
+    const statusEl = (id, text, cls) => {
+      const el = $(id);
+      el.className = "hint " + (cls || "");
+      el.textContent = text;
+    };
+    const copy = async (text) => {
+      await navigator.clipboard.writeText(text);
+    };
+
+    let lastJson = "";
+
+    const walletFromForm = () => {
+      const key = $("privateKey").value.trim();
+      if (!key) throw new Error("Generate or load a private key first.");
+      return new ethers.Wallet(key);
+    };
+
+    $("btnGenerate").onclick = () => {
+      const wallet = ethers.Wallet.createRandom();
+      $("address").value = wallet.address.toLowerCase();
+      $("privateKey").value = wallet.privateKey;
+      $("scanAddress").value = wallet.address.toLowerCase();
+      statusEl("walletStatus", "New keypair in this tab only.", "ok");
+    };
+
+    $("btnToggleKey").onclick = () => {
+      $("privateKey").classList.toggle("show");
+      $("btnToggleKey").textContent = $("privateKey").classList.contains("show")
+        ? "Hide key"
+        : "Show key";
+    };
+
+    $("btnDownload").onclick = () => {
+      const address = $("address").value.trim();
+      const privateKey = $("privateKey").value.trim();
+      if (!address || !privateKey) {
+        statusEl("walletStatus", "Generate a wallet first.", "err");
+        return;
+      }
+      const blob = new Blob(
+        [JSON.stringify({ address, privateKey }, null, 2)],
+        { type: "application/json" },
+      );
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "wallet.json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+
+    $("btnLoad").onclick = () => $("file").click();
+    $("file").onchange = async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      try {
+        const parsed = JSON.parse(await file.text());
+        const privateKey = parsed.privateKey || parsed.private_key;
+        const wallet = new ethers.Wallet(privateKey);
+        $("address").value = (parsed.address || wallet.address).toLowerCase();
+        $("privateKey").value = wallet.privateKey;
+        $("scanAddress").value = $("address").value;
+        statusEl("walletStatus", "Loaded " + file.name, "ok");
+      } catch (error) {
+        statusEl("walletStatus", error.message, "err");
+      }
+    };
+
+    const scanPayload = () => {
+      const address = ($("scanAddress").value || $("address").value).trim();
+      if (!ethers.isAddress(address)) throw new Error("Need a valid address to scan.");
+      return {
+        operation: "ADDRESS_OPERATION_ADD",
+        addresses: [address.toLowerCase()],
+      };
+    };
+
+    $("btnScan").onclick = () => {
+      try {
+        const payload = scanPayload();
+        lastJson = JSON.stringify(payload, null, 2);
+        $("scanOut").textContent = lastJson;
+      } catch (error) {
+        $("scanOut").textContent = error.message;
+      }
+    };
+
+    $("btnCopyScan").onclick = async () => {
+      if (!$("scanOut").textContent) return;
+      await copy($("scanOut").textContent);
+    };
+
+    const buildItem = async () => {
+      const wallet = walletFromForm();
+      const to = $("to").value.trim();
+      const amount = $("amount").value.trim();
+      const nonce = Number($("nonce").value.trim());
+      const tokenId = $("tokenId").value.trim();
+      const contract = $("contract").value.trim();
+      if (!ethers.isAddress(to)) throw new Error("to_address is invalid.");
+      if (!ATOMIC.test(amount)) throw new Error("amount must be an Atomic Unit integer string.");
+      if (!Number.isInteger(nonce) || nonce < 0) throw new Error("nonce must be an integer >= 0.");
+      if (!TOKEN_ID.test(tokenId)) throw new Error("token_id must be a positive integer string.");
+      if (contract && !ethers.isAddress(contract)) throw new Error("contract is invalid.");
+
+      const chainId = Number($("chainId").value || "1");
+      const gasLimit = BigInt(
+        $("gasLimit").value.trim() || (contract ? "65000" : "21000"),
+      );
+      const gasPrice = $("gasPrice").value.trim();
+      const tx = contract
+        ? {
+            to: ethers.getAddress(contract),
+            data: ERC20.encodeFunctionData("transfer", [to, BigInt(amount)]),
+            value: 0n,
+          }
+        : { to, value: BigInt(amount) };
+
+      const signedTx = await wallet.signTransaction(
+        gasPrice
+          ? { type: 0, ...tx, nonce, gasLimit, gasPrice: BigInt(gasPrice), chainId }
+          : {
+              type: 2,
+              ...tx,
+              nonce,
+              gasLimit,
+              maxFeePerGas: BigInt($("maxFee").value || "1000000000"),
+              maxPriorityFeePerGas: BigInt($("priorityFee").value || "1000000000"),
+              chainId,
+            },
+      );
+
+      return {
+        from_address: wallet.address.toLowerCase(),
+        to_address: to.toLowerCase(),
+        token_id: tokenId,
+        amount,
+        nonce,
+        signed_tx: signedTx,
+      };
+    };
+
+    $("btnSign").onclick = async () => {
+      try {
+        const item = await buildItem();
+        lastJson = JSON.stringify(item, null, 2);
+        $("signOut").textContent = lastJson;
+        statusEl("signStatus", "Signed in-browser. Ready for Collect.", "ok");
+      } catch (error) {
+        statusEl("signStatus", error.message, "err");
+      }
+    };
+
+    $("btnCollect").onclick = async () => {
+      try {
+        const item = await buildItem();
+        const request = { items: [item] };
+        lastJson = JSON.stringify(request, null, 2);
+        $("signOut").textContent = lastJson;
+        statusEl("signStatus", "CollectRequest JSON. Send via Postman/grpcurl — browser cannot speak native gRPC.", "warn");
+      } catch (error) {
+        statusEl("signStatus", error.message, "err");
+      }
+    };
+
+    $("btnCopySign").onclick = async () => {
+      if (!lastJson) return;
+      await copy(lastJson);
+      statusEl("signStatus", "Copied.", "ok");
+    };
+  </script>
+</body>
+</html>
