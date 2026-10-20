@@ -3,367 +3,2413 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Dev tools — address, scan, sign</title>
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="Build, hash and sign Ethereum transactions locally, then copy the Collect JSON." />
+  <title>ETH Dev Tools — build · hash · sign</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2358a6ff' d='M12 2 5.5 12.2 12 16l6.5-3.8L12 2Z'/%3E%3Cpath fill='%238b5cf6' d='M12 17.5 5.9 13.7 12 22l6.1-8.3-6.1 3.8Z'/%3E%3C/svg%3E" />
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.15.0/dist/ethers.umd.min.js"></script>
   <style>
     :root {
-      --bg: #0f1419;
-      --panel: #1a222c;
-      --line: #2a3644;
-      --text: #e8eef4;
-      --muted: #8b9aab;
-      --accent: #3d9cf0;
-      --ok: #3ecf8e;
-      --err: #f07178;
-      --warn: #e6c07b;
+      --bg: #070b10;
+      --panel: #101821;
+      --panel-2: #131d28;
+      --line: #223040;
+      --line-soft: #1a2531;
+      --text: #e7eef6;
+      --muted: #8fa0b3;
+      --dim: #647a8f;
+      --accent: #58a6ff;
+      --accent-2: #8b5cf6;
+      --ok: #4ade80;
+      --err: #fb7185;
+      --warn: #fbbf24;
+      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
-    * { box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { color-scheme: dark; }
+    [hidden] { display: none !important; }
     body {
       margin: 0;
-      font: 14px/1.45 ui-sans-serif, system-ui, sans-serif;
-      background: var(--bg);
+      min-height: 100vh;
+      font: 14px/1.5 var(--sans);
       color: var(--text);
+      background:
+        radial-gradient(1100px 520px at 8% -8%, rgba(88,166,255,.13), transparent 62%),
+        radial-gradient(900px 480px at 100% 0%, rgba(139,92,246,.11), transparent 60%),
+        var(--bg);
+      background-attachment: fixed;
+      -webkit-font-smoothing: antialiased;
     }
-    header {
-      padding: 20px 24px 8px;
-      border-bottom: 1px solid var(--line);
+    code { font-family: var(--mono); }
+    .mono { font-family: var(--mono); }
+
+    /* ---------- top bar ---------- */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(7,11,16,.78);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line-soft);
     }
-    header h1 { margin: 0 0 6px; font-size: 18px; font-weight: 650; }
-    header p { margin: 0; color: var(--muted); max-width: 72ch; }
-    main {
-      display: grid;
+    .topbar-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 13px 24px 9px;
+      display: flex;
+      align-items: center;
       gap: 16px;
-      padding: 16px 24px 32px;
-      max-width: 1100px;
     }
-    @media (min-width: 900px) {
-      main { grid-template-columns: 1fr 1fr; }
-      .wide { grid-column: 1 / -1; }
-    }
-    section {
-      background: var(--panel);
-      border: 1px solid var(--line);
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .logo {
+      width: 38px; height: 38px; flex: none;
+      display: grid; place-items: center;
       border-radius: 12px;
-      padding: 16px;
+      color: #cfe6ff;
+      background: linear-gradient(145deg, rgba(88,166,255,.22), rgba(139,92,246,.18));
+      border: 1px solid rgba(88,166,255,.3);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 8px 24px -12px rgba(88,166,255,.7);
     }
-    h2 { margin: 0 0 12px; font-size: 15px; }
-    label { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 4px; }
+    .logo svg { width: 22px; height: 22px; }
+    h1 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
+    .brand-sub { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .local-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.025);
+      color: #9fb6cf;
+      font-size: 10.5px; font-weight: 600;
+      letter-spacing: .08em; text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .local-badge svg { width: 11px; height: 11px; }
+    .wallet-pill {
+      position: relative;
+      display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+      min-width: 152px;
+      padding: 7px 12px 7px 28px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .wallet-pill:hover { border-color: #33475d; background: #121c26; }
+    .wallet-pill .dot {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--dim);
+      box-shadow: 0 0 0 3px rgba(255,255,255,.03);
+    }
+    .wallet-pill.has-wallet .dot { background: var(--ok); box-shadow: 0 0 10px rgba(74,222,128,.6); }
+    .pill-meta { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+    .pill-value { font: 11.5px var(--mono); color: #cfe0f2; }
+    .tabs-wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px 11px; }
+    .tabs {
+      display: inline-flex; gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line-soft);
+      border-radius: 11px;
+      background: rgba(11,17,24,.7);
+    }
+    .tab {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 14px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font: 600 12.5px var(--sans);
+      cursor: pointer;
+      transition: color .15s, background .15s, border-color .15s, box-shadow .15s;
+      white-space: nowrap;
+    }
+    .tab svg { width: 15px; height: 15px; opacity: .85; }
+    .tab:hover { color: var(--text); background: rgba(255,255,255,.035); }
+    .tab.active {
+      color: #eaf5ff;
+      background: linear-gradient(180deg, rgba(88,166,255,.18), rgba(88,166,255,.08));
+      border-color: rgba(88,166,255,.3);
+      box-shadow: 0 8px 24px -16px rgba(88,166,255,.9);
+    }
+    .tab-badge {
+      margin-left: 2px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.07);
+      color: var(--muted);
+      font: 600 10px var(--sans);
+    }
+    .tab-badge.ok { background: rgba(74,222,128,.14); color: var(--ok); }
+
+    /* ---------- layout ---------- */
+    main { max-width: 1120px; margin: 0 auto; padding: 26px 24px 70px; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: rise .28s ease both; }
+    @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .panel {
+      padding: 22px 24px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(19,29,40,.86), rgba(12,18,26,.92));
+      box-shadow: 0 30px 70px -40px #000;
+    }
+    .section-head {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 16px; flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .eyebrow {
+      margin-bottom: 5px;
+      color: #6f8ba6;
+      font-size: 10.5px; font-weight: 700;
+      letter-spacing: .16em; text-transform: uppercase;
+    }
+    h2 { margin: 0; font-size: 19px; letter-spacing: -.015em; }
+    .section-head p { margin: 6px 0 0; max-width: 72ch; color: var(--muted); font-size: 12.5px; }
+    .section-head p code { color: #a9c6e2; font-size: 11.5px; }
+    .panel-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+      gap: 24px;
+    }
+    .stack > .field + .field { margin-top: 13px; }
+    .aside { border-left: 1px solid var(--line-soft); padding-left: 24px; }
+    .aside h3 {
+      margin: 0 0 11px;
+      color: #9db0c4;
+      font-size: 11.5px; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase;
+    }
+    .bullets { margin: 0; padding-left: 16px; display: grid; gap: 9px; color: var(--muted); font-size: 11.5px; }
+    .bullets strong { color: #cfdded; font-weight: 600; }
+    .bullets code { color: #b9d3e8; }
+    .aside-note { margin: 14px 0 0; color: var(--dim); font-size: 11px; line-height: 1.65; }
+    .aside-note code { color: #a9c6e2; }
+    .side-flow { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+    .side-flow-label { display: block; margin-bottom: 8px; color: var(--dim); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; }
+    .mini-pipeline { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .mini-pipeline span {
+      padding: 3px 7px;
+      border: 1px solid var(--line-soft);
+      border-radius: 5px;
+      background: rgba(255,255,255,.025);
+      color: #a9c6e2;
+      font: 500 10px var(--mono);
+    }
+    .mini-pipeline i { color: #3f5468; font-style: normal; font-size: 11px; }
+
+    /* ---------- form ---------- */
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+    .field { min-width: 0; }
+    .field.span-2 { grid-column: 1 / -1; }
+    .field label {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 6px;
+      color: #9db0c4;
+      font-size: 11.5px; font-weight: 600;
+    }
+    .req { color: var(--err); }
+    .unit {
+      padding: 1px 5px;
+      border: 1px solid var(--line-soft);
+      border-radius: 4px;
+      color: var(--dim);
+      font: 500 10px var(--mono);
+    }
     input, textarea, select {
       width: 100%;
-      background: #0f1419;
-      color: var(--text);
+      padding: 10px 12px;
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 8px 10px;
-      font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+      border-radius: 9px;
+      outline: none;
+      background: #080e14;
+      color: var(--text);
+      font: 13px/1.45 var(--mono);
+      transition: border-color .15s, box-shadow .15s, background .15s;
     }
-    textarea { min-height: 120px; resize: vertical; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    button {
-      background: var(--accent);
-      color: #061018;
-      border: 0;
+    input::placeholder, textarea::placeholder { color: #4d6074; }
+    input:focus, textarea:focus {
+      border-color: rgba(88,166,255,.6);
+      background: #0a1119;
+      box-shadow: 0 0 0 3px rgba(88,166,255,.1);
+    }
+    input[readonly] { color: #b9cbdd; }
+    .paste-area { min-height: 132px; resize: vertical; line-height: 1.55; }
+    .key { transition: filter .18s; }
+    .key:not(:placeholder-shown) { filter: blur(4.5px); }
+    .key:not(:placeholder-shown).show { filter: none; }
+    .input-row { display: flex; align-items: center; gap: 8px; }
+    .input-row input { flex: 1; min-width: 0; }
+    .field-hint { margin: 5px 0 0; color: var(--dim); font-size: 11px; }
+    .field-hint code { color: #a9c6e2; }
+    .field-err { display: none; margin: 5px 0 0; color: var(--err); font-size: 11px; }
+    .field.is-invalid .field-err { display: block; }
+    .field.is-invalid .field-hint { display: none; }
+    .field.is-invalid input, .field.is-invalid textarea {
+      border-color: rgba(251,113,133,.55);
+      box-shadow: 0 0 0 3px rgba(251,113,133,.09);
+    }
+    .segmented {
+      display: inline-flex; gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #080e14;
+    }
+    .segmented button {
+      padding: 6px 11px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      font: 600 11.5px var(--sans);
+      cursor: pointer;
+      transition: color .15s, background .15s, border-color .15s;
+    }
+    .segmented button:hover { color: var(--text); }
+    .segmented button.active {
+      border-color: rgba(88,166,255,.28);
+      background: rgba(88,166,255,.14);
+      color: #dceeff;
+    }
+    .inline-warn {
+      margin: 0; padding: 8px 10px;
+      border: 1px solid rgba(251,191,36,.25);
       border-radius: 8px;
-      padding: 8px 12px;
-      font-weight: 650;
+      background: rgba(251,191,36,.06);
+      color: #e6c98e;
+      font-size: 11px;
+    }
+    .form-actions, .actions-row {
+      display: flex; align-items: center; flex-wrap: wrap;
+      gap: 10px 14px;
+    }
+    .form-actions {
+      margin-top: 18px;
+      padding-top: 16px;
+      border-top: 1px dashed var(--line-soft);
+    }
+    .actions-row { margin-top: 16px; }
+    .form-note { color: var(--dim); font-size: 11px; }
+
+    /* ---------- buttons ---------- */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 9px 14px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #16222e;
+      color: var(--text);
+      font: 600 12.5px var(--sans);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color .15s, background .15s, filter .15s, opacity .15s;
+    }
+    .btn:hover:not(:disabled) { border-color: #38506a; background: #1a2836; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn.primary {
+      border-color: transparent;
+      background: linear-gradient(135deg, #4c9cf5, #6f7cf7);
+      color: #06111f;
+      box-shadow: 0 10px 26px -14px rgba(88,166,255,.9), inset 0 1px 0 rgba(255,255,255,.22);
+    }
+    .btn.primary:hover:not(:disabled) { filter: brightness(1.06); }
+    .btn.ghost { background: transparent; color: var(--muted); }
+    .btn.tiny { padding: 5px 9px; border-radius: 6px; font-size: 10.5px; }
+    .btn.copied {
+      border-color: rgba(74,222,128,.4);
+      background: rgba(74,222,128,.08);
+      color: var(--ok);
+    }
+    .btn.is-busy { pointer-events: none; }
+    .spinner {
+      width: 13px; height: 13px;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      animation: spin .65s linear infinite;
+      opacity: .9;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .chip {
+      padding: 2px 7px;
+      border: 1px solid var(--line-soft);
+      border-radius: 999px;
+      background: rgba(255,255,255,.03);
+      color: #9fb4c9;
+      font: 500 10px var(--mono);
+      white-space: nowrap;
+    }
+
+    /* ---------- collect header ---------- */
+    .pipeline {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      margin: 0 0 4px;
+      padding: 9px 11px;
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      background: rgba(8,13,19,.55);
+    }
+    .pipe { padding: 2px 6px; color: #9fb4c9; font: 500 10.5px var(--mono); }
+    .pipe code { color: #bcd9f6; }
+    .pipe-arrow { color: #3f5468; font-size: 11px; }
+    .stepper { position: relative; margin: 18px 0 4px; padding-top: 4px; }
+    .stepper-track {
+      position: absolute; top: 18px; left: 12.5%; right: 12.5%;
+      height: 2px;
+      border-radius: 2px;
+      background: var(--line);
+    }
+    .stepper-fill {
+      width: 0; height: 100%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, #58a6ff, #4ade80);
+      transition: width .45s cubic-bezier(.2,.8,.2,1);
+    }
+    .stepper-steps { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); }
+    .stepper-step {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--dim);
+      font: 600 10.5px var(--sans);
       cursor: pointer;
     }
-    button.secondary { background: #2a3644; color: var(--text); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
-    .ok { color: var(--ok); }
-    .err { color: var(--err); }
-    .warn { color: var(--warn); }
-    .key { filter: blur(5px); }
-    .key.show { filter: none; }
-    pre {
-      margin: 10px 0 0;
-      background: #0f1419;
+    .stepper-step:disabled { cursor: not-allowed; opacity: .55; }
+    .node-dot {
+      width: 30px; height: 30px;
+      display: grid; place-items: center;
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px;
+      border-radius: 50%;
+      background: #0b1219;
+      color: var(--muted);
+      font: 700 11px var(--sans);
+      transition: border-color .2s, color .2s, background .2s, box-shadow .2s;
+    }
+    .stepper-step:not(:disabled):hover .node-dot { border-color: rgba(88,166,255,.5); }
+    .stepper-step.current .node-dot {
+      border-color: rgba(88,166,255,.65);
+      color: #dff0ff;
+      box-shadow: 0 0 0 4px rgba(88,166,255,.08), 0 0 22px -6px rgba(88,166,255,.6);
+    }
+    .stepper-step.done .node-dot {
+      border-color: rgba(74,222,128,.5);
+      background: rgba(74,222,128,.14);
+      color: var(--ok);
+    }
+    .stepper-step.current .node-label { color: #cfe6fb; }
+    .stepper-step.done .node-label { color: #9fd9b8; }
+    .node-label { letter-spacing: .02em; }
+
+    /* ---------- step cards ---------- */
+    .step-card {
+      position: relative;
+      margin-top: 14px;
+      padding: 18px 20px 20px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: linear-gradient(180deg, rgba(16,25,35,.9), rgba(10,16,23,.92));
+      scroll-margin-top: 132px;
+      transition: border-color .2s, box-shadow .2s, opacity .2s;
+    }
+    .step-card.is-locked { opacity: .55; }
+    .step-card.is-current {
+      border-color: rgba(88,166,255,.32);
+      box-shadow: 0 0 0 1px rgba(88,166,255,.06), 0 22px 50px -36px rgba(88,166,255,.55);
+    }
+    .step-card.is-done { border-color: rgba(74,222,128,.22); }
+    .step-head { display: flex; align-items: flex-start; gap: 12px; }
+    .step-number {
+      flex: none;
+      width: 30px; height: 30px;
+      display: grid; place-items: center;
+      border: 1px solid rgba(88,166,255,.22);
+      border-radius: 9px;
+      background: rgba(88,166,255,.1);
+      color: #a9c9ea;
+      font: 700 12px var(--sans);
+    }
+    .step-card.is-done .step-number {
+      border-color: var(--ok);
+      background: var(--ok);
+      color: #0a1710;
+    }
+    .step-card.is-locked .step-number {
+      border-color: var(--line);
+      background: rgba(255,255,255,.03);
+      color: var(--dim);
+    }
+    .step-titles { flex: 1; min-width: 0; }
+    .step-titles h3 { margin: 0; font-size: 14.5px; letter-spacing: -.01em; }
+    .step-titles p { margin: 3px 0 0; color: var(--muted); font-size: 11.5px; }
+    .pill {
+      flex: none;
+      display: inline-flex; align-items: center;
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.02);
+      color: var(--muted);
+      font: 600 10px var(--sans);
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .pill.ready { border-color: rgba(88,166,255,.28); background: rgba(88,166,255,.08); color: #a8d4ff; }
+    .pill.done { border-color: rgba(74,222,128,.28); background: rgba(74,222,128,.07); color: var(--ok); }
+    .pill.locked { color: var(--dim); }
+    .step-body { margin-top: 16px; }
+    .lock-note {
+      display: flex; align-items: center; gap: 8px;
+      margin-top: 14px;
+      padding: 10px 12px;
+      border: 1px dashed var(--line);
+      border-radius: 9px;
+      color: var(--dim);
+      font-size: 11.5px;
+    }
+    .lock-note::before { content: "◇"; color: #4e667c; font-size: 12px; }
+
+    /* ---------- results ---------- */
+    .result { margin-top: 16px; animation: reveal .24s ease both; }
+    @keyframes reveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .fact {
+      padding: 9px 11px;
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      background: #0b1219;
+    }
+    .fact span { display: block; color: var(--dim); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; }
+    .fact strong { display: block; margin-top: 3px; color: #d9e7f5; font: 500 12px var(--mono); }
+    .fact strong.muted { color: var(--muted); }
+    .callout {
+      margin: 0 0 12px;
+      padding: 9px 12px;
+      border-left: 2px solid rgba(88,166,255,.5);
+      border-radius: 0 8px 8px 0;
+      background: rgba(88,166,255,.05);
+      color: #a9c6e2;
+      font-size: 11.5px;
+      line-height: 1.6;
+    }
+    .code-card {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: #080d13;
+    }
+    .code-card + .code-card { margin-top: 12px; }
+    .code-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px 12px;
+      flex-wrap: wrap;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line-soft);
+      background: rgba(255,255,255,.018);
+    }
+    .code-title { display: flex; align-items: center; gap: 8px; color: #b9c9da; font-size: 11.5px; font-weight: 600; }
+    .badge {
+      padding: 1px 5px;
+      border: 1px solid var(--line-soft);
+      border-radius: 4px;
+      background: rgba(255,255,255,.05);
+      color: var(--muted);
+      font: 500 9.5px var(--mono);
+    }
+    .code-tools { display: flex; align-items: center; gap: 8px; }
+    pre.code {
+      margin: 0;
+      padding: 12px 13px;
+      max-height: 320px;
       overflow: auto;
-      font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #cfe2f3;
+      font: 11.5px/1.6 var(--mono);
       white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    pre.code:empty::before { content: attr(data-empty); color: var(--dim); }
+    .result-note { margin: 11px 0 0; color: var(--dim); font-size: 11px; line-height: 1.65; }
+    .result-note code { color: #a9c6e2; }
+    .hash-feature {
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 12px;
+      padding: 14px 16px;
+      border: 1px solid rgba(88,166,255,.28);
+      border-radius: 12px;
+      background: linear-gradient(160deg, rgba(88,166,255,.1), rgba(139,92,246,.06));
+    }
+    .hash-feature::after {
+      content: "";
+      position: absolute; right: -40px; bottom: -60px;
+      width: 160px; height: 160px;
+      background: radial-gradient(circle, rgba(88,166,255,.2), transparent 70%);
+      pointer-events: none;
+    }
+    .hash-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .hash-key { color: #8fb6dd; font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    .hash-value {
+      display: block;
+      margin-top: 8px;
+      color: #eaf6ff;
+      font: 13px/1.6 var(--mono);
       word-break: break-all;
+    }
+    .hash-note { display: block; margin-top: 8px; color: #7f9ab3; font-size: 10.5px; }
+    .sign-bar {
+      display: flex; align-items: center; flex-wrap: wrap;
+      gap: 10px 24px;
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      border: 1px solid var(--line-soft);
+      border-radius: 9px;
+      background: rgba(8,13,19,.5);
+    }
+    .sign-ctx { display: flex; flex-direction: column; gap: 2px; }
+    .mini-label { color: var(--dim); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; }
+    .sign-ctx code { color: #c6d9ec; font: 11.5px var(--mono); }
+    .sign-ctx code.empty { color: var(--warn); }
+    .verify, .export-banner {
+      display: flex; align-items: flex-start; gap: 10px;
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      border: 1px solid rgba(74,222,128,.3);
+      border-radius: 10px;
+      background: rgba(74,222,128,.07);
+    }
+    .verify svg, .export-banner svg { flex: none; width: 18px; height: 18px; margin-top: 1px; color: var(--ok); }
+    .verify strong, .export-banner strong { display: block; color: #c7f7d9; font-size: 12px; }
+    .verify span, .export-banner span { color: #8fbfa5; font: 11px var(--mono); word-break: break-all; }
+    .export-banner span { font-family: var(--sans); font-size: 11.5px; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .two-col .code-card + .code-card { margin-top: 0; }
+    .endpoint {
+      display: grid; gap: 8px;
+      margin-top: 12px;
+      padding: 11px 13px;
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      background: rgba(8,13,19,.5);
+    }
+    .endpoint div { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .endpoint span { min-width: 62px; color: var(--dim); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; }
+    .endpoint code { color: #b9d3e8; font: 11px var(--mono); word-break: break-all; }
+    .alert {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: rgba(255,255,255,.025);
+      color: var(--muted);
+      font-size: 11.5px;
+    }
+    .alert.warn { border-color: rgba(251,191,36,.28); background: rgba(251,191,36,.06); color: #e8c98f; }
+    .alert.err { border-color: rgba(251,113,133,.3); background: rgba(251,113,133,.07); color: #f3a6af; }
+    .alert svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+    .alert-body { flex: 1; min-width: 0; }
+    .alert-body strong { display: block; font-size: 12px; }
+    .alert-body span { color: var(--muted); font-size: 11px; }
+    .alert .btn { margin-left: auto; }
+    #buildError { margin-top: 12px; }
+    .kv { display: flex; flex-direction: column; gap: 2px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+    .kv:last-child { border-bottom: 0; }
+    .kv span { color: var(--dim); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; }
+    .kv code { color: #bcd3e8; font: 11px var(--mono); word-break: break-all; }
+    .status-line { min-height: 18px; margin: 12px 0 0; color: var(--muted); font-size: 11px; }
+    .status-line.ok { color: var(--ok); }
+    .status-line.err { color: var(--err); }
+    .status-line.warn { color: var(--warn); }
+
+    /* ---------- toasts & footer ---------- */
+    .toasts {
+      position: fixed; right: 18px; bottom: 18px;
+      z-index: 100;
+      display: flex; flex-direction: column; gap: 8px;
+      max-width: min(380px, calc(100vw - 36px));
+    }
+    .toast {
+      display: flex; align-items: flex-start; gap: 9px;
+      padding: 10px 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #111b25;
+      color: #d7e4f1;
+      font-size: 12px;
+      box-shadow: 0 18px 40px -20px rgba(0,0,0,.9);
+      animation: toast-in .22s ease both;
+    }
+    .toast::before {
+      content: ""; flex: none;
+      width: 7px; height: 7px; margin-top: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .toast.success::before { background: var(--ok); }
+    .toast.error::before { background: var(--err); }
+    .toast.warn::before { background: var(--warn); }
+    .toast.out { animation: toast-out .2s ease both; }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+    @keyframes toast-out { to { opacity: 0; transform: translateY(6px); } }
+    footer {
+      display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px;
+      max-width: 1120px; margin: 0 auto;
+      padding: 0 24px 40px;
+      color: var(--dim);
+      font-size: 11px;
+    }
+    .fatal {
+      padding: 13px 20px;
+      border-bottom: 1px solid rgba(251,113,133,.4);
+      background: rgba(251,113,133,.12);
+      color: #ffc3c9;
+      font-size: 13px;
+    }
+    :focus-visible { outline: 2px solid rgba(88,166,255,.7); outline-offset: 2px; }
+    input:focus-visible { outline: none; }
+
+    @media (max-width: 860px) {
+      .panel-grid { grid-template-columns: 1fr; }
+      .aside { border-left: 0; border-top: 1px solid var(--line-soft); padding-left: 0; padding-top: 18px; }
+    }
+    @media (max-width: 720px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .field.span-2 { grid-column: auto; }
+      .two-col { grid-template-columns: 1fr; }
+      .topbar-inner { flex-wrap: wrap; padding: 12px 16px 8px; }
+      .topbar-right { width: 100%; justify-content: space-between; }
+      .wallet-pill { flex: 1; min-width: 0; }
+      .tabs-wrap { padding: 0 16px 10px; }
+      .tabs { display: flex; width: 100%; overflow-x: auto; }
+      .tab { flex: 1; justify-content: center; padding: 8px 10px; font-size: 11.5px; }
+      main { padding: 18px 16px 50px; }
+      .panel { padding: 18px 16px; border-radius: 14px; }
+      .brand-sub { display: none; }
+      .step-card { padding: 16px; scroll-margin-top: 168px; }
+      .stepper { margin-top: 14px; }
+      .stepper-step { font-size: 9.5px; }
+      .node-dot { width: 26px; height: 26px; font-size: 10px; }
+      .stepper-track { top: 16px; }
+      .result-note { font-size: 10.5px; }
+      .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+      }
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Dev tools</h1>
-    <p>
-      One local HTML file. Address + sign run in the browser with <code>ethers</code> (CDN).
-      Native gRPC cannot run in a page, so Scan/Collect build the exact proto JSON for Postman or grpcurl.
-    </p>
+  <noscript><div class="fatal">This tool needs JavaScript to build and sign transactions.</div></noscript>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 2.6 5.6 12.3 12 16.1l6.4-3.8L12 2.6Z" fill="currentColor" opacity=".95"/>
+            <path d="M12 17.5 5.9 13.7 12 22l6.1-8.3-6.1 3.8Z" fill="currentColor" opacity=".6"/>
+          </svg>
+        </div>
+        <div>
+          <h1>ETH Dev Tools</h1>
+          <p class="brand-sub">Build, hash and sign transactions — 100% in this tab.</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="local-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="5" y="10.5" width="14" height="9" rx="2"/>
+            <path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7"/>
+          </svg>
+          Local only
+        </span>
+        <button type="button" class="wallet-pill" id="walletPill" title="Open wallet">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="pill-meta">Signer</span>
+          <span class="pill-value" id="walletPillText">No wallet</span>
+        </button>
+      </div>
+    </div>
+    <div class="tabs-wrap">
+      <nav class="tabs" role="tablist" aria-label="Tools">
+        <button type="button" class="tab active" id="tab-wallet" role="tab" aria-selected="true" aria-controls="panel-wallet" data-tab="wallet">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <rect x="3" y="6" width="18" height="13" rx="2.5"/>
+            <path d="M15.5 12.5h2.6"/>
+            <path d="M3 9.5h18"/>
+          </svg>
+          Wallet
+        </button>
+        <button type="button" class="tab" id="tab-scan" role="tab" aria-selected="false" aria-controls="panel-scan" data-tab="scan" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <circle cx="11" cy="11" r="6"/>
+            <path d="m15.6 15.6 4.4 4.4"/>
+          </svg>
+          Scan
+        </button>
+        <button type="button" class="tab" id="tab-collect" role="tab" aria-selected="false" aria-controls="panel-collect" data-tab="collect" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M4 20h4.3L20 8.3 15.7 4 4 15.7V20Z"/>
+            <path d="m13.8 5.9 4.3 4.3"/>
+          </svg>
+          Collect &amp; sign
+          <span class="tab-badge" id="collectBadge">4 steps</span>
+        </button>
+        <button type="button" class="tab" id="tab-inspect" role="tab" aria-selected="false" aria-controls="panel-inspect" data-tab="inspect" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m8.5 8-4 4 4 4"/>
+            <path d="m15.5 8 4 4-4 4"/>
+            <path d="m13.5 4.5-3 15"/>
+          </svg>
+          Inspect
+        </button>
+      </nav>
+    </div>
   </header>
+
   <main>
-    <section>
-      <h2>1. Address</h2>
-      <label>Address</label>
-      <input id="address" readonly placeholder="Generate or paste a key" />
-      <label>Private key</label>
-      <input id="privateKey" class="key" readonly placeholder="0x…" />
-      <div class="actions">
-        <button type="button" id="btnGenerate">Generate</button>
-        <button type="button" class="secondary" id="btnToggleKey">Show key</button>
-        <button type="button" class="secondary" id="btnDownload">Download JSON</button>
-        <button type="button" class="secondary" id="btnLoad">Load JSON</button>
-        <input id="file" type="file" accept="application/json,.json" hidden />
+    <!-- ================= WALLET ================= -->
+    <section class="tab-panel active" id="panel-wallet" role="tabpanel" aria-labelledby="tab-wallet">
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Identity</div>
+            <h2>Wallet</h2>
+            <p>Generate a throwaway keypair or load wallet.json. Signing happens here, in memory, and the key never leaves the page.</p>
+          </div>
+        </div>
+        <div class="panel-grid">
+          <div class="stack">
+            <div class="field">
+              <label for="address">Address</label>
+              <div class="input-row">
+                <input id="address" readonly placeholder="Generate or load a keypair" spellcheck="false" />
+                <button type="button" class="btn tiny" data-copy="address">Copy</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="privateKey">Private key</label>
+              <div class="input-row">
+                <input id="privateKey" class="key" readonly placeholder="0x…" spellcheck="false" autocomplete="off" />
+                <button type="button" class="btn tiny" id="btnToggleKey" aria-pressed="false">Show</button>
+                <button type="button" class="btn tiny" data-copy="privateKey" data-sensitive>Copy</button>
+              </div>
+              <p class="field-hint">Blurred by default. Never share it and never commit it.</p>
+            </div>
+            <div class="actions-row">
+              <button type="button" class="btn primary" id="btnGenerate">Generate keypair</button>
+              <button type="button" class="btn" id="btnDownload">Download wallet.json</button>
+              <button type="button" class="btn ghost" id="btnLoad">Load wallet.json</button>
+              <input id="file" type="file" accept="application/json,.json" hidden />
+            </div>
+            <p id="walletStatus" class="status-line" role="status" aria-live="polite"></p>
+          </div>
+          <aside class="aside">
+            <h3>Key safety</h3>
+            <ul class="bullets">
+              <li><strong>In-memory only.</strong> The key is held in this tab and is never uploaded or logged.</li>
+              <li><strong>Never commit it.</strong> wallet.json is a plain-text key — keep it out of git.</li>
+              <li><strong>Dev use only.</strong> Use throwaway keys, not a production wallet.</li>
+            </ul>
+            <div class="side-flow">
+              <span class="side-flow-label">Signing pipeline</span>
+              <div class="mini-pipeline">
+                <span>tx object</span><i>→</i><span>hash</span><i>→</i><span>signature</span>
+              </div>
+            </div>
+          </aside>
+        </div>
       </div>
-      <p class="hint warn">Key never leaves this tab. Do not commit wallet.json.</p>
-      <p id="walletStatus" class="hint"></p>
     </section>
 
-    <section>
-      <h2>2. Scan (watch-list ADD)</h2>
-      <label>Address to watch</label>
-      <input id="scanAddress" placeholder="Uses generated address if empty" />
-      <div class="actions">
-        <button type="button" id="btnScan">Build BatchUpdateAddresses JSON</button>
-        <button type="button" class="secondary" id="btnCopyScan">Copy</button>
+    <!-- ================= SCAN ================= -->
+    <section class="tab-panel" id="panel-scan" role="tabpanel" aria-labelledby="tab-scan" hidden>
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Watch-list</div>
+            <h2>Scan address</h2>
+            <p>Build the exact JSON body for <code>BatchUpdateAddresses</code> and paste it into Postman or grpcurl.</p>
+          </div>
+        </div>
+        <div class="panel-grid">
+          <div>
+            <div class="field" data-field="scanAddress">
+              <label for="scanAddress">Address to watch</label>
+              <div class="input-row">
+                <input id="scanAddress" placeholder="0x…" spellcheck="false" />
+                <button type="button" class="btn tiny" id="btnUseWallet">Use wallet</button>
+              </div>
+              <p class="field-err" id="scanError"></p>
+            </div>
+            <div class="actions-row">
+              <button type="button" class="btn primary" id="btnScan">Build JSON</button>
+              <span class="form-note">Lowercased before it is sent.</span>
+            </div>
+            <div class="code-card" style="margin-top: 16px;">
+              <div class="code-head">
+                <span class="code-title">BatchUpdateAddresses <span class="badge">body</span></span>
+                <div class="code-tools">
+                  <span class="chip">ADDRESS_OPERATION_ADD</span>
+                  <button type="button" class="btn tiny" id="btnCopyScan" data-copy="scanOut" disabled>Copy</button>
+                </div>
+              </div>
+              <pre class="code" id="scanOut" data-empty="Build the payload to see the JSON here."></pre>
+            </div>
+          </div>
+          <aside class="aside">
+            <h3>gRPC target</h3>
+            <div class="kv"><span>Service</span><code>ethereum_scanner.AddressService</code></div>
+            <div class="kv"><span>Method</span><code>BatchUpdateAddresses</code></div>
+            <div class="kv"><span>Operation</span><code>ADDRESS_OPERATION_ADD</code></div>
+            <p class="aside-note">Browsers cannot speak native gRPC, so this page builds the body only. Send it with Postman or grpcurl.</p>
+          </aside>
+        </div>
       </div>
-      <p class="hint">gRPC: <code>ethereum_scanner.AddressService/BatchUpdateAddresses</code> + metadata <code>x-api-key</code></p>
-      <pre id="scanOut"></pre>
     </section>
 
-    <section class="wide">
-      <h2>3. Sign Collect tx</h2>
-      <div class="row">
+    <!-- ================= COLLECT ================= -->
+    <section class="tab-panel" id="panel-collect" role="tabpanel" aria-labelledby="tab-collect" hidden>
+      <div class="section-head">
         <div>
-          <label>to_address</label>
-          <input id="to" placeholder="0x recipient" />
+          <div class="eyebrow">Collect · transaction flow</div>
+          <h2>Build → hash → sign → export</h2>
+          <p>Four explicit steps. Each one shows its output and lets you copy it, so you can see exactly what the private key signs.</p>
         </div>
-        <div>
-          <label>amount (Atomic Unit integer)</label>
-          <input id="amount" placeholder="1000000000000000000" />
+        <button type="button" class="btn ghost" id="btnResetFlow">Reset flow</button>
+      </div>
+
+      <div class="pipeline" aria-label="Signing pipeline">
+        <span class="pipe">form values</span>
+        <span class="pipe-arrow">→</span>
+        <span class="pipe">tx object</span>
+        <span class="pipe-arrow">→</span>
+        <span class="pipe"><code>keccak256</code></span>
+        <span class="pipe-arrow">→</span>
+        <span class="pipe">signature</span>
+        <span class="pipe-arrow">→</span>
+        <span class="pipe">signed_tx</span>
+      </div>
+
+      <div class="stepper" aria-label="Progress">
+        <div class="stepper-track"><div class="stepper-fill" id="stepperFill"></div></div>
+        <div class="stepper-steps">
+          <button type="button" class="stepper-step current" data-goto="1"><span class="node-dot">1</span><span class="node-label">Build</span></button>
+          <button type="button" class="stepper-step locked" data-goto="2" disabled><span class="node-dot">2</span><span class="node-label">Hash</span></button>
+          <button type="button" class="stepper-step locked" data-goto="3" disabled><span class="node-dot">3</span><span class="node-label">Sign</span></button>
+          <button type="button" class="stepper-step locked" data-goto="4" disabled><span class="node-dot">4</span><span class="node-label">Export</span></button>
         </div>
       </div>
-      <div class="row">
-        <div>
-          <label>nonce</label>
-          <input id="nonce" value="0" />
+
+      <!-- STEP 1 -->
+      <article class="step-card is-current" id="step-1">
+        <div class="step-head">
+          <span class="step-number" aria-hidden="true">1</span>
+          <div class="step-titles">
+            <h3>Build the transaction</h3>
+            <p>Turn the form into a typed, unsigned Ethereum transaction.</p>
+          </div>
+          <span class="pill ready" id="status-1">Ready</span>
         </div>
-        <div>
-          <label>token_id</label>
-          <input id="tokenId" value="1" />
+        <div class="step-body">
+          <form id="txForm" novalidate autocomplete="off">
+            <div class="form-grid">
+              <div class="field span-2" data-field="to">
+                <label for="to">Recipient <span class="req">*</span></label>
+                <input id="to" name="to" placeholder="0x70997970C51812dc3A010C7d01b50e0d17dc79C8" spellcheck="false" />
+                <p class="field-err"></p>
+              </div>
+              <div class="field" data-field="amount">
+                <label for="amount">Amount <span class="unit">atomic units</span></label>
+                <input id="amount" inputmode="numeric" placeholder="1000000000000000000" spellcheck="false" />
+                <p class="field-hint" id="amountHint">Base units — 10¹⁸ wei = 1 ETH.</p>
+                <p class="field-err"></p>
+              </div>
+              <div class="field" data-field="tokenId">
+                <label for="tokenId">Token id</label>
+                <input id="tokenId" value="1" inputmode="numeric" spellcheck="false" />
+                <p class="field-hint">Catalog token id sent to the Collect API.</p>
+                <p class="field-err"></p>
+              </div>
+              <div class="field span-2" data-field="contract">
+                <label for="contract">ERC-20 contract <span class="unit">optional</span></label>
+                <input id="contract" placeholder="Leave empty for native ETH" spellcheck="false" />
+                <p class="field-hint">Set a token contract to sign <code>transfer(recipient, amount)</code> instead.</p>
+                <p class="field-err"></p>
+              </div>
+              <div class="field" data-field="nonce">
+                <label for="nonce">Nonce</label>
+                <input id="nonce" value="0" inputmode="numeric" spellcheck="false" />
+                <p class="field-err"></p>
+              </div>
+              <div class="field" data-field="chainId">
+                <label for="chainId">Chain id</label>
+                <input id="chainId" value="1" inputmode="numeric" spellcheck="false" />
+                <p class="field-err"></p>
+              </div>
+              <div class="field" data-field="gasLimit">
+                <label for="gasLimit">Gas limit <span class="unit">optional</span></label>
+                <input id="gasLimit" inputmode="numeric" placeholder="auto" spellcheck="false" />
+                <p class="field-hint" id="gasLimitHint">Leave empty to use 21000 for native ETH.</p>
+                <p class="field-err"></p>
+              </div>
+              <div class="field span-2">
+                <label>Fee model</label>
+                <div class="segmented" id="feeModel" role="group" aria-label="Fee model">
+                  <button type="button" data-model="eip1559" class="active" aria-pressed="true">EIP-1559 · type 2</button>
+                  <button type="button" data-model="legacy" aria-pressed="false">Legacy · type 0</button>
+                </div>
+                <p class="field-hint" id="feeModelHint">Base fee + priority fee. The modern default.</p>
+              </div>
+              <div class="field" id="fieldMaxFee" data-field="maxFee">
+                <label for="maxFee">maxFeePerGas <span class="unit">wei</span></label>
+                <input id="maxFee" value="1000000000" inputmode="numeric" spellcheck="false" />
+                <p class="field-err"></p>
+              </div>
+              <div class="field" id="fieldPriority" data-field="priorityFee">
+                <label for="priorityFee">maxPriorityFeePerGas <span class="unit">wei</span></label>
+                <input id="priorityFee" value="1000000000" inputmode="numeric" spellcheck="false" />
+                <p class="field-err"></p>
+              </div>
+              <div class="field" id="fieldGasPrice" data-field="gasPrice" hidden>
+                <label for="gasPrice">gasPrice <span class="unit">wei</span></label>
+                <input id="gasPrice" value="1000000000" inputmode="numeric" spellcheck="false" />
+                <p class="field-err"></p>
+              </div>
+              <div class="field span-2">
+                <p class="inline-warn" id="feeWarn" hidden>Tip is higher than max fee — nodes will reject this transaction.</p>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn primary" id="btnBuild">Build unsigned tx</button>
+              <span class="form-note">No key needed yet. This step only assembles the transaction object.</span>
+            </div>
+            <p class="alert err" id="buildError" role="alert" hidden></p>
+          </form>
+
+          <div class="result" id="result-1" hidden>
+            <div class="facts">
+              <div class="fact"><span>Mode</span><strong id="factMode">—</strong></div>
+              <div class="fact"><span>Fee model</span><strong id="factFee">—</strong></div>
+              <div class="fact"><span>Max gas cost</span><strong id="factGas">—</strong></div>
+              <div class="fact"><span>Signer</span><strong id="factSigner">—</strong></div>
+            </div>
+            <p class="callout" id="erc20Note" hidden></p>
+            <div class="code-card">
+              <div class="code-head">
+                <span class="code-title">Transaction object <span class="badge">unsigned</span></span>
+                <div class="code-tools">
+                  <span class="chip" id="txTypeChip">—</span>
+                  <button type="button" class="btn tiny" data-copy="txJsonPreview">Copy</button>
+                </div>
+              </div>
+              <pre class="code" id="txJsonPreview"></pre>
+            </div>
+            <p class="result-note">Big integers are shown as strings because JSON has no native bigint type. This object is a readable view — the bytes that get hashed come from its RLP encoding in step 2.</p>
+          </div>
+        </div>
+      </article>
+
+      <!-- STEP 2 -->
+      <article class="step-card is-locked" id="step-2">
+        <div class="step-head">
+          <span class="step-number" aria-hidden="true">2</span>
+          <div class="step-titles">
+            <h3>Hash the unsigned transaction</h3>
+            <p>keccak256 over the RLP-encoded transaction — the 32-byte digest that gets signed.</p>
+          </div>
+          <span class="pill locked" id="status-2">Locked</span>
+        </div>
+        <div class="lock-note" id="lock-2">Build the transaction first — the hash is computed from it.</div>
+        <div class="step-body" id="body-2" hidden>
+          <div class="actions-row">
+            <button type="button" class="btn primary" id="btnHash">Compute unsigned hash</button>
+            <span class="form-note">Deterministic: same inputs → same bytes → same hash.</span>
+          </div>
+          <div class="result" id="result-2" hidden>
+            <div class="hash-feature">
+              <div class="hash-head">
+                <span class="hash-key">unsigned hash · keccak256</span>
+                <button type="button" class="btn tiny" data-copy="unsignedHash">Copy</button>
+              </div>
+              <code class="hash-value" id="unsignedHash"></code>
+            </div>
+            <div class="code-card">
+              <div class="code-head">
+                <span class="code-title">RLP-encoded unsigned tx <span class="badge">unsignedSerialized</span></span>
+                <div class="code-tools">
+                  <span class="chip" id="rlpMeta">—</span>
+                  <button type="button" class="btn tiny" data-copy="unsignedRlp">Copy</button>
+                </div>
+              </div>
+              <pre class="code" id="unsignedRlp"></pre>
+            </div>
+            <p class="result-note">The hash is <code>keccak256(RLP(tx))</code>, not the hash of the JSON text above. Your private key signs this digest — it never signs the JSON itself.</p>
+          </div>
+        </div>
+      </article>
+
+      <!-- STEP 3 -->
+      <article class="step-card is-locked" id="step-3">
+        <div class="step-head">
+          <span class="step-number" aria-hidden="true">3</span>
+          <div class="step-titles">
+            <h3>Sign the hash</h3>
+            <p>ECDSA with your private key. The signature is attached to the tx to produce signed_tx.</p>
+          </div>
+          <span class="pill locked" id="status-3">Locked</span>
+        </div>
+        <div class="lock-note" id="lock-3">Compute the unsigned hash first.</div>
+        <div class="step-body" id="body-3" hidden>
+          <div class="sign-bar">
+            <div class="sign-ctx"><span class="mini-label">Signer</span><code id="signerChip">no wallet</code></div>
+            <div class="sign-ctx"><span class="mini-label">Payload hash</span><code id="hashChip">—</code></div>
+          </div>
+          <div class="alert warn" id="signGate">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <rect x="4.5" y="10.5" width="15" height="9.5" rx="2"/>
+              <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>
+            </svg>
+            <div class="alert-body">
+              <strong>No private key loaded</strong>
+              <span>Build and hash work without a wallet. Signing needs one.</span>
+            </div>
+            <button type="button" class="btn tiny" id="btnOpenWallet">Open wallet</button>
+          </div>
+          <div class="actions-row">
+            <button type="button" class="btn primary" id="btnSign">Sign transaction</button>
+            <span class="form-note">Success is reported only after the recovered signer is verified.</span>
+          </div>
+          <div class="result" id="result-3" hidden>
+            <div class="verify">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m5 12 4.2 4.2L19 6.5"/>
+              </svg>
+              <div>
+                <strong>Signature verified</strong>
+                <span id="verifyText"></span>
+              </div>
+            </div>
+            <div class="code-card">
+              <div class="code-head">
+                <span class="code-title">signed_tx <span class="badge">raw hex</span></span>
+                <button type="button" class="btn tiny" data-copy="signedTx">Copy</button>
+              </div>
+              <pre class="code" id="signedTx"></pre>
+            </div>
+            <div class="two-col">
+              <div class="code-card">
+                <div class="code-head">
+                  <span class="code-title">Transaction hash</span>
+                  <button type="button" class="btn tiny" data-copy="signedTxHash">Copy</button>
+                </div>
+                <pre class="code" id="signedTxHash"></pre>
+              </div>
+              <div class="code-card">
+                <div class="code-head">
+                  <span class="code-title">Signature parts</span>
+                  <button type="button" class="btn tiny" data-copy="signatureJson">Copy</button>
+                </div>
+                <pre class="code" id="signatureJson"></pre>
+              </div>
+            </div>
+            <div class="actions-row">
+              <button type="button" class="btn" id="btnGotoExport">Go to export ↓</button>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- STEP 4 -->
+      <article class="step-card is-locked" id="step-4">
+        <div class="step-head">
+          <span class="step-number" aria-hidden="true">4</span>
+          <div class="step-titles">
+            <h3>Copy the export</h3>
+            <p>The exact JSON the Collect API expects, with the signed transaction inside.</p>
+          </div>
+          <span class="pill locked" id="status-4">Locked</span>
+        </div>
+        <div class="lock-note" id="lock-4">Sign the transaction to unlock the final payload.</div>
+        <div class="step-body" id="body-4" hidden>
+          <div class="result" id="result-4" hidden>
+            <div class="export-banner">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m5 12 4.2 4.2L19 6.5"/>
+              </svg>
+              <div>
+                <strong>Ready to send</strong>
+                <span>Copy the item or the full CollectRequest. Both contain the same signed transaction.</span>
+              </div>
+            </div>
+            <div class="code-card">
+              <div class="code-head">
+                <span class="code-title">Collect item <span class="badge">items[]</span></span>
+                <div class="code-tools">
+                  <button type="button" class="btn tiny" id="btnDownloadItem">Download</button>
+                  <button type="button" class="btn tiny" data-copy="itemJson">Copy</button>
+                </div>
+              </div>
+              <pre class="code" id="itemJson"></pre>
+            </div>
+            <div class="code-card">
+              <div class="code-head">
+                <span class="code-title">CollectRequest <span class="badge">request body</span></span>
+                <div class="code-tools">
+                  <button type="button" class="btn tiny" id="btnDownloadRequest">Download</button>
+                  <button type="button" class="btn tiny" data-copy="requestJson">Copy</button>
+                </div>
+              </div>
+              <pre class="code" id="requestJson"></pre>
+            </div>
+            <div class="endpoint">
+              <div><span>gRPC</span><code>ethereum_scanner.TransactionService/Collect</code></div>
+            </div>
+            <p class="result-note">The request is <code>{ "items": [ item ] }</code>. Send it with Postman or grpcurl.</p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ================= INSPECT ================= -->
+    <section class="tab-panel" id="panel-inspect" role="tabpanel" aria-labelledby="tab-inspect" hidden>
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Decoder</div>
+            <h2>Inspect an unsigned transaction</h2>
+            <p>Paste the raw unsigned tx or the step 1 JSON. The page recomputes the keccak256 hash and shows every decoded field — no key needed.</p>
+          </div>
+        </div>
+        <div class="panel-grid">
+          <div>
+            <div class="field" data-field="inspectInput">
+              <label for="inspectInput">Unsigned transaction <span class="unit">RLP hex or JSON</span></label>
+              <textarea id="inspectInput" class="paste-area" spellcheck="false" placeholder="0x02f2…    ← unsignedSerialized&#10;or&#10;{ &quot;type&quot;: 2, &quot;chainId&quot;: 1, … }"></textarea>
+              <p class="field-err" id="inspectError"></p>
+              <p class="field-hint">Raw hex may be unsigned or signed. JSON from step 1 works as-is. Missing JSON fields default to zero.</p>
+            </div>
+            <div class="actions-row">
+              <button type="button" class="btn primary" id="btnInspect">Decode &amp; hash</button>
+              <button type="button" class="btn ghost" id="btnInspectFromFlow" disabled>Use current unsigned tx</button>
+              <button type="button" class="btn ghost" id="btnInspectClear">Clear</button>
+            </div>
+            <p id="inspectStatus" class="status-line" role="status" aria-live="polite"></p>
+            <div class="result" id="inspectResult" hidden>
+              <div class="facts">
+                <div class="fact"><span>Type</span><strong id="inspectType">—</strong></div>
+                <div class="fact"><span>Chain</span><strong id="inspectChain">—</strong></div>
+                <div class="fact"><span>Nonce</span><strong id="inspectNonce">—</strong></div>
+                <div class="fact"><span>Input</span><strong id="inspectKind">—</strong></div>
+              </div>
+              <div class="hash-feature">
+                <div class="hash-head">
+                  <span class="hash-key">unsigned hash · keccak256</span>
+                  <button type="button" class="btn tiny" data-copy="inspectHash">Copy</button>
+                </div>
+                <code class="hash-value" id="inspectHash"></code>
+                <span class="hash-note">One-way 32-byte digest. You cannot decode it back — decode the RLP below instead.</span>
+              </div>
+              <p class="callout" id="inspectData" hidden></p>
+              <div class="code-card">
+                <div class="code-head">
+                  <span class="code-title">Decoded transaction <span class="badge">fields</span></span>
+                  <button type="button" class="btn tiny" data-copy="inspectJson">Copy</button>
+                </div>
+                <pre class="code" id="inspectJson"></pre>
+              </div>
+              <div class="code-card">
+                <div class="code-head">
+                  <span class="code-title">Unsigned RLP <span class="badge">unsignedSerialized</span></span>
+                  <div class="code-tools">
+                    <span class="chip" id="inspectRlpMeta">—</span>
+                    <button type="button" class="btn tiny" data-copy="inspectRlp">Copy</button>
+                  </div>
+                </div>
+                <pre class="code" id="inspectRlp"></pre>
+              </div>
+              <p class="result-note">This hash is <code>keccak256(RLP(tx))</code> — the digest a signer would sign. The RLP and JSON are the decodable payloads.</p>
+            </div>
+          </div>
+          <aside class="aside">
+            <h3>How to read this</h3>
+            <ul class="bullets">
+              <li><strong>Hash</strong> — fingerprint of the unsigned tx. One-way; use it to compare or verify what gets signed.</li>
+              <li><strong>RLP / JSON</strong> — the full transaction. Every field (chain, nonce, to, value, data, gas, fees) is recoverable.</li>
+              <li><strong>Signed input</strong> — decode also shows the recovered sender and signed tx hash.</li>
+            </ul>
+            <div class="side-flow">
+              <span class="side-flow-label">Accepted input</span>
+              <div class="mini-pipeline">
+                <span>0x02…</span><i>·</i><span>0xf8…</span><i>·</i><span>{ type, … }</span>
+              </div>
+            </div>
+            <p class="aside-note">Everything runs locally with ethers v6. Never sign a bare hash you cannot tie back to these decoded fields.</p>
+          </aside>
         </div>
       </div>
-      <div class="row">
-        <div>
-          <label>ERC-20 contract (empty = native ETH)</label>
-          <input id="contract" placeholder="0xdac17f…" />
-        </div>
-        <div>
-          <label>chainId</label>
-          <input id="chainId" value="1" />
-        </div>
-      </div>
-      <div class="row">
-        <div>
-          <label>gasLimit</label>
-          <input id="gasLimit" placeholder="21000 native / 65000 ERC-20" />
-        </div>
-        <div>
-          <label>maxFeePerGas (wei)</label>
-          <input id="maxFee" value="1000000000" />
-        </div>
-      </div>
-      <div class="row">
-        <div>
-          <label>maxPriorityFeePerGas (wei)</label>
-          <input id="priorityFee" value="1000000000" />
-        </div>
-        <div>
-          <label>gasPrice (set = legacy type-0)</label>
-          <input id="gasPrice" placeholder="leave empty for EIP-1559" />
-        </div>
-      </div>
-      <div class="actions">
-        <button type="button" id="btnSign">Sign Collect item</button>
-        <button type="button" class="secondary" id="btnCollect">Build CollectRequest JSON</button>
-        <button type="button" class="secondary" id="btnCopySign">Copy last JSON</button>
-      </div>
-      <p id="signStatus" class="hint"></p>
-      <pre id="signOut"></pre>
     </section>
   </main>
+
+  <footer>
+    <span>Runs entirely in your browser · ethers v6 · no keys or payloads are sent anywhere.</span>
+    <span>Built for the Collect flow</span>
+  </footer>
+
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
   <script>
-    const ATOMIC = /^(0|[1-9][0-9]{0,64})$/;
-    const TOKEN_ID = /^[1-9][0-9]*$/;
-    const ERC20 = new ethers.Interface(["function transfer(address to, uint256 amount)"]);
+    (function () {
+      "use strict";
 
-    const $ = (id) => document.getElementById(id);
-    const statusEl = (id, text, cls) => {
-      const el = $(id);
-      el.className = "hint " + (cls || "");
-      el.textContent = text;
-    };
-    const copy = async (text) => {
-      await navigator.clipboard.writeText(text);
-    };
+      const $ = (id) => document.getElementById(id);
+      const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+      const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const scrollBehavior = () => (motionQuery.matches ? "auto" : "smooth");
 
-    let lastJson = "";
-
-    const walletFromForm = () => {
-      const key = $("privateKey").value.trim();
-      if (!key) throw new Error("Generate or load a private key first.");
-      return new ethers.Wallet(key);
-    };
-
-    $("btnGenerate").onclick = () => {
-      const wallet = ethers.Wallet.createRandom();
-      $("address").value = wallet.address.toLowerCase();
-      $("privateKey").value = wallet.privateKey;
-      $("scanAddress").value = wallet.address.toLowerCase();
-      statusEl("walletStatus", "New keypair in this tab only.", "ok");
-    };
-
-    $("btnToggleKey").onclick = () => {
-      $("privateKey").classList.toggle("show");
-      $("btnToggleKey").textContent = $("privateKey").classList.contains("show")
-        ? "Hide key"
-        : "Show key";
-    };
-
-    $("btnDownload").onclick = () => {
-      const address = $("address").value.trim();
-      const privateKey = $("privateKey").value.trim();
-      if (!address || !privateKey) {
-        statusEl("walletStatus", "Generate a wallet first.", "err");
+      if (!window.ethers) {
+        const banner = document.createElement("div");
+        banner.className = "fatal";
+        banner.textContent = "ethers.js could not be loaded from the CDN. Check your connection and reload this page.";
+        document.body.prepend(banner);
         return;
       }
-      const blob = new Blob(
-        [JSON.stringify({ address, privateKey }, null, 2)],
-        { type: "application/json" },
-      );
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "wallet.json";
-      a.click();
-      URL.revokeObjectURL(a.href);
-    };
 
-    $("btnLoad").onclick = () => $("file").click();
-    $("file").onchange = async (event) => {
-      const file = event.target.files && event.target.files[0];
-      if (!file) return;
-      try {
-        const parsed = JSON.parse(await file.text());
-        const privateKey = parsed.privateKey || parsed.private_key;
-        const wallet = new ethers.Wallet(privateKey);
-        $("address").value = (parsed.address || wallet.address).toLowerCase();
-        $("privateKey").value = wallet.privateKey;
-        $("scanAddress").value = $("address").value;
-        statusEl("walletStatus", "Loaded " + file.name, "ok");
-      } catch (error) {
-        statusEl("walletStatus", error.message, "err");
-      }
-    };
+      const ATOMIC = /^(0|[1-9][0-9]{0,64})$/;
+      const TOKEN_ID = /^[1-9][0-9]*$/;
+      const UINT = /^\d+$/;
+      const UINT_POS = /^[1-9]\d*$/;
+      const ERC20 = new ethers.Interface(["function transfer(address to, uint256 amount)"]);
 
-    const scanPayload = () => {
-      const address = ($("scanAddress").value || $("address").value).trim();
-      if (!ethers.isAddress(address)) throw new Error("Need a valid address to scan.");
-      return {
-        operation: "ADDRESS_OPERATION_ADD",
-        addresses: [address.toLowerCase()],
+      let feeModel = "eip1559";
+      let wallet = null;
+
+      const flow = {
+        busy: false,
+        built: false,
+        hashed: false,
+        signed: false,
+        values: null,
+        snapshot: "",
+        request: null,
+        tx: null,
+        isErc20: false,
+        recipient: "",
+        contract: "",
+        unsignedSerialized: "",
+        unsignedHash: "",
+        signedTx: "",
+        signedTxHash: "",
+        signature: null,
+        recovered: "",
+        item: null,
+        itemText: "",
+        requestText: "",
       };
-    };
 
-    $("btnScan").onclick = () => {
-      try {
-        const payload = scanPayload();
-        lastJson = JSON.stringify(payload, null, 2);
-        $("scanOut").textContent = lastJson;
-      } catch (error) {
-        $("scanOut").textContent = error.message;
+      /* ---------- helpers ---------- */
+
+      function shortAddress(address) {
+        if (!address) return "no wallet";
+        return address.slice(0, 6) + "…" + address.slice(-4);
       }
-    };
 
-    $("btnCopyScan").onclick = async () => {
-      if (!$("scanOut").textContent) return;
-      await copy($("scanOut").textContent);
-    };
+      function shortHash(hash) {
+        if (!hash) return "—";
+        return hash.slice(0, 10) + "…" + hash.slice(-6);
+      }
 
-    const buildItem = async () => {
-      const wallet = walletFromForm();
-      const to = $("to").value.trim();
-      const amount = $("amount").value.trim();
-      const nonce = Number($("nonce").value.trim());
-      const tokenId = $("tokenId").value.trim();
-      const contract = $("contract").value.trim();
-      if (!ethers.isAddress(to)) throw new Error("to_address is invalid.");
-      if (!ATOMIC.test(amount)) throw new Error("amount must be an Atomic Unit integer string.");
-      if (!Number.isInteger(nonce) || nonce < 0) throw new Error("nonce must be an integer >= 0.");
-      if (!TOKEN_ID.test(tokenId)) throw new Error("token_id must be a positive integer string.");
-      if (contract && !ethers.isAddress(contract)) throw new Error("contract is invalid.");
+      function formatEth(wei) {
+        try {
+          const text = ethers.formatEther(BigInt(wei));
+          const parts = text.split(".");
+          const whole = parts[0];
+          const fraction = (parts[1] || "").replace(/0+$/, "").slice(0, 8);
+          return fraction ? whole + "." + fraction + " ETH" : whole + " ETH";
+        } catch {
+          return "—";
+        }
+      }
 
-      const chainId = Number($("chainId").value || "1");
-      const gasLimit = BigInt(
-        $("gasLimit").value.trim() || (contract ? "65000" : "21000"),
-      );
-      const gasPrice = $("gasPrice").value.trim();
-      const tx = contract
-        ? {
-            to: ethers.getAddress(contract),
-            data: ERC20.encodeFunctionData("transfer", [to, BigInt(amount)]),
-            value: 0n,
+      function setWalletStatus(text, type) {
+        const el = $("walletStatus");
+        el.textContent = text || "";
+        el.className = "status-line" + (type ? " " + type : "");
+      }
+
+      function toast(message, type) {
+        const container = $("toasts");
+        while (container.children.length >= 3) container.firstElementChild.remove();
+        const el = document.createElement("div");
+        el.className = "toast " + (type || "info");
+        el.textContent = message;
+        container.appendChild(el);
+        setTimeout(() => {
+          el.classList.add("out");
+          setTimeout(() => el.remove(), 220);
+        }, 2800);
+      }
+
+      async function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          try {
+            await navigator.clipboard.writeText(text);
+            return;
+          } catch {
+            // fall through to the legacy path
           }
-        : { to, value: BigInt(amount) };
-
-      const signedTx = await wallet.signTransaction(
-        gasPrice
-          ? { type: 0, ...tx, nonce, gasLimit, gasPrice: BigInt(gasPrice), chainId }
-          : {
-              type: 2,
-              ...tx,
-              nonce,
-              gasLimit,
-              maxFeePerGas: BigInt($("maxFee").value || "1000000000"),
-              maxPriorityFeePerGas: BigInt($("priorityFee").value || "1000000000"),
-              chainId,
-            },
-      );
-
-      return {
-        from_address: wallet.address.toLowerCase(),
-        to_address: to.toLowerCase(),
-        token_id: tokenId,
-        amount,
-        nonce,
-        signed_tx: signedTx,
-      };
-    };
-
-    $("btnSign").onclick = async () => {
-      try {
-        const item = await buildItem();
-        lastJson = JSON.stringify(item, null, 2);
-        $("signOut").textContent = lastJson;
-        statusEl("signStatus", "Signed in-browser. Ready for Collect.", "ok");
-      } catch (error) {
-        statusEl("signStatus", error.message, "err");
+        }
+        const area = document.createElement("textarea");
+        area.value = text;
+        area.setAttribute("readonly", "");
+        area.style.position = "fixed";
+        area.style.left = "-9999px";
+        document.body.appendChild(area);
+        area.select();
+        const ok = document.execCommand("copy");
+        area.remove();
+        if (!ok) throw new Error("Copy failed");
       }
-    };
 
-    $("btnCollect").onclick = async () => {
-      try {
-        const item = await buildItem();
-        const request = { items: [item] };
-        lastJson = JSON.stringify(request, null, 2);
-        $("signOut").textContent = lastJson;
-        statusEl("signStatus", "CollectRequest JSON. Send via Postman/grpcurl — browser cannot speak native gRPC.", "warn");
-      } catch (error) {
-        statusEl("signStatus", error.message, "err");
+      function flashCopied(btn) {
+        if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+        btn.textContent = "Copied";
+        btn.classList.add("copied");
+        clearTimeout(btn._copyTimer);
+        btn._copyTimer = setTimeout(() => {
+          btn.textContent = btn.dataset.label;
+          btn.classList.remove("copied");
+        }, 1400);
       }
-    };
 
-    $("btnCopySign").onclick = async () => {
-      if (!lastJson) return;
-      await copy(lastJson);
-      statusEl("signStatus", "Copied.", "ok");
-    };
+      function download(filename, text) {
+        const blob = new Blob([text], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+
+      function setButtonBusy(btn, busy, label) {
+        if (busy) {
+          if (!btn.dataset.idleHtml) btn.dataset.idleHtml = btn.innerHTML;
+          btn.disabled = true;
+          btn.classList.add("is-busy");
+          btn.setAttribute("aria-busy", "true");
+          btn.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>' + label + "</span>";
+          return;
+        }
+        btn.classList.remove("is-busy");
+        btn.removeAttribute("aria-busy");
+        if (btn.dataset.idleHtml) {
+          btn.innerHTML = btn.dataset.idleHtml;
+          delete btn.dataset.idleHtml;
+        }
+        btn.disabled = false;
+      }
+
+      function wait(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      function setCode(id, text) {
+        const el = $(id);
+        el.textContent = text;
+        el.scrollTop = 0;
+        el.scrollLeft = 0;
+      }
+
+      function scrollToStep(n) {
+        const card = $("step-" + n);
+        if (!card) return;
+        setTimeout(() => card.scrollIntoView({ behavior: scrollBehavior(), block: "start" }), 160);
+      }
+
+      function scrollToResult(id) {
+        const el = $(id);
+        if (!el) return;
+        setTimeout(() => el.scrollIntoView({ behavior: scrollBehavior(), block: "center" }), 160);
+      }
+
+      /* ---------- copy (works for inputs and code blocks) ---------- */
+
+      document.addEventListener("click", async (event) => {
+        const btn = event.target.closest("[data-copy]");
+        if (!btn || btn.disabled) return;
+        const source = $(btn.dataset.copy);
+        if (!source) return;
+        const text = ("value" in source ? source.value : source.textContent).trim();
+        if (!text) {
+          toast("Nothing to copy yet.", "warn");
+          return;
+        }
+        try {
+          await copyText(text);
+          flashCopied(btn);
+          if (btn.hasAttribute("data-sensitive")) {
+            toast("Private key copied — handle with care.", "warn");
+          } else {
+            toast("Copied to clipboard.", "success");
+          }
+        } catch {
+          toast("Copy failed — select the text and copy it manually.", "error");
+        }
+      });
+
+      /* ---------- tabs ---------- */
+
+      const tabButtons = $$(".tab");
+
+      function switchTab(name) {
+        tabButtons.forEach((tab) => {
+          const active = tab.dataset.tab === name;
+          tab.classList.toggle("active", active);
+          tab.setAttribute("aria-selected", active ? "true" : "false");
+          tab.tabIndex = active ? 0 : -1;
+        });
+        $$(".tab-panel").forEach((panel) => {
+          const active = panel.id === "panel-" + name;
+          panel.classList.toggle("active", active);
+          panel.hidden = !active;
+        });
+      }
+
+      tabButtons.forEach((tab, index) => {
+        tab.addEventListener("click", () => switchTab(tab.dataset.tab));
+        tab.addEventListener("keydown", (event) => {
+          if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+          event.preventDefault();
+          const dir = event.key === "ArrowRight" ? 1 : -1;
+          const next = tabButtons[(index + dir + tabButtons.length) % tabButtons.length];
+          switchTab(next.dataset.tab);
+          next.focus();
+        });
+      });
+
+      $("walletPill").addEventListener("click", () => switchTab("wallet"));
+
+      /* ---------- wallet ---------- */
+
+      function renderWallet() {
+        const pill = $("walletPill");
+        pill.classList.toggle("has-wallet", Boolean(wallet));
+        pill.title = wallet ? "Signer " + wallet.address : "Open wallet";
+        $("walletPillText").textContent = wallet ? shortAddress(wallet.address) : "No wallet";
+        if (flow.built) {
+          $("factSigner").textContent = wallet ? shortAddress(wallet.address) : "Not loaded";
+          $("factSigner").classList.toggle("muted", !wallet);
+        }
+        updateFlowUI();
+      }
+
+      function applyWallet(next, message) {
+        const previous = wallet ? wallet.address : "";
+        const changed = previous !== (next ? next.address : "");
+        const lostSignature = changed && flow.signed;
+        wallet = next;
+
+        if (next) {
+          $("address").value = next.address.toLowerCase();
+          $("privateKey").value = next.privateKey;
+        } else {
+          $("address").value = "";
+          $("privateKey").value = "";
+          $("privateKey").classList.remove("show");
+          $("btnToggleKey").textContent = "Show";
+          $("btnToggleKey").setAttribute("aria-pressed", "false");
+        }
+
+        if (lostSignature) {
+          clearSignature();
+          toast("Wallet changed — sign the transaction again.", "warn");
+        }
+        renderWallet();
+        if (message) setWalletStatus(message.text, message.type);
+      }
+
+      $("btnGenerate").addEventListener("click", () => {
+        const next = ethers.Wallet.createRandom();
+        $("scanAddress").value = next.address.toLowerCase();
+        clearScanError();
+        clearScan();
+        applyWallet(next, {
+          text: "New keypair generated in this tab. Back it up only if you need it.",
+          type: "ok",
+        });
+        toast("New wallet generated.", "success");
+      });
+
+      $("btnToggleKey").addEventListener("click", () => {
+        const shown = $("privateKey").classList.toggle("show");
+        $("btnToggleKey").textContent = shown ? "Hide" : "Show";
+        $("btnToggleKey").setAttribute("aria-pressed", shown ? "true" : "false");
+      });
+
+      $("btnDownload").addEventListener("click", () => {
+        if (!wallet) {
+          setWalletStatus("Generate or load a wallet first.", "err");
+          toast("No wallet to download.", "warn");
+          return;
+        }
+        download(
+          "wallet.json",
+          JSON.stringify({ address: wallet.address.toLowerCase(), privateKey: wallet.privateKey }, null, 2),
+        );
+        setWalletStatus("wallet.json downloaded. Keep it out of git.", "warn");
+      });
+
+      $("btnLoad").addEventListener("click", () => $("file").click());
+
+      $("file").addEventListener("change", async (event) => {
+        const file = event.target.files && event.target.files[0];
+        event.target.value = "";
+        if (!file) return;
+        try {
+          const parsed = JSON.parse(await file.text());
+          const privateKey = String(parsed.privateKey || parsed.private_key || "").trim();
+          if (!privateKey) throw new Error("This JSON has no privateKey field.");
+          const next = new ethers.Wallet(privateKey);
+          if (parsed.address && String(parsed.address).toLowerCase() !== next.address.toLowerCase()) {
+            throw new Error("The address in this file does not match its private key.");
+          }
+          $("scanAddress").value = next.address.toLowerCase();
+          clearScanError();
+          clearScan();
+          applyWallet(next, { text: "Loaded " + file.name + ".", type: "ok" });
+          toast("Wallet loaded.", "success");
+        } catch (error) {
+          const message = error.message || "Could not load this file.";
+          setWalletStatus(message, "err");
+          toast(message, "error");
+        }
+      });
+
+      /* ---------- scan ---------- */
+
+      function clearScan() {
+        $("scanOut").textContent = "";
+        $("btnCopyScan").disabled = true;
+      }
+
+      function clearScanError() {
+        $("scanAddress").closest(".field").classList.remove("is-invalid");
+        $("scanError").textContent = "";
+      }
+
+      function handleScan() {
+        const raw = $("scanAddress").value.trim() || $("address").value.trim();
+        const field = $("scanAddress").closest(".field");
+        const error = $("scanError");
+
+        if (!ethers.isAddress(raw)) {
+          field.classList.add("is-invalid");
+          error.textContent = raw ? "Not a valid 0x address." : "Enter an address to watch.";
+          clearScan();
+          return;
+        }
+
+        field.classList.remove("is-invalid");
+        error.textContent = "";
+        const payload = {
+          operation: "ADDRESS_OPERATION_ADD",
+          addresses: [raw.toLowerCase()],
+        };
+        $("scanOut").textContent = JSON.stringify(payload, null, 2);
+        $("scanOut").scrollTop = 0;
+        $("scanOut").scrollLeft = 0;
+        $("btnCopyScan").disabled = false;
+        toast("Watch-list payload built.", "success");
+      }
+
+      $("btnScan").addEventListener("click", handleScan);
+
+      $("scanAddress").addEventListener("input", () => {
+        clearScanError();
+        clearScan();
+      });
+
+      $("btnUseWallet").addEventListener("click", () => {
+        if (!wallet) {
+          toast("Generate or load a wallet first.", "warn");
+          switchTab("wallet");
+          return;
+        }
+        $("scanAddress").value = wallet.address.toLowerCase();
+        clearScanError();
+        clearScan();
+      });
+
+      /* ---------- inspect ---------- */
+
+      let inspectBusy = false;
+
+      function clearInspectError() {
+        $("inspectInput").closest(".field").classList.remove("is-invalid");
+        $("inspectError").textContent = "";
+      }
+
+      function setInspectStatus(text, type) {
+        const el = $("inspectStatus");
+        el.textContent = text || "";
+        el.className = "status-line" + (type ? " " + type : "");
+      }
+
+      function clearInspectResult() {
+        $("inspectResult").hidden = true;
+        setCode("inspectHash", "");
+        setCode("inspectJson", "");
+        setCode("inspectRlp", "");
+        $("inspectData").hidden = true;
+        $("inspectData").textContent = "";
+      }
+
+      function txTypeLabel(type) {
+        if (type === 0) return "Legacy · type 0";
+        if (type === 1) return "EIP-2930 · type 1";
+        if (type === 2) return "EIP-1559 · type 2";
+        if (type === 3) return "EIP-4844 · type 3";
+        return "Type " + type;
+      }
+
+      function parseInspectInput(raw) {
+        const text = raw.trim();
+        if (!text) throw new Error("Paste an unsigned transaction first.");
+        if (text.charAt(0) === "{") {
+          let json;
+          try {
+            json = JSON.parse(text);
+          } catch (error) {
+            throw new Error("Invalid JSON: " + error.message);
+          }
+          if (!json || typeof json !== "object" || Array.isArray(json)) {
+            throw new Error("JSON must be a single transaction object.");
+          }
+          const tx = ethers.Transaction.from(json);
+          return { tx, kind: tx.signature ? "JSON · signed" : "JSON object" };
+        }
+        if (!/^0x[0-9a-fA-F]+$/.test(text) || text.length % 2 !== 0) {
+          throw new Error("Expected 0x… raw transaction hex or a JSON object.");
+        }
+        const tx = ethers.Transaction.from(text);
+        return { tx, kind: tx.signature ? "Signed raw" : "Unsigned raw" };
+      }
+
+      function inspectFields(tx) {
+        const fields = {
+          type: tx.type,
+          typeName: txTypeLabel(tx.type),
+          chainId: tx.chainId != null ? Number(tx.chainId) : null,
+          nonce: tx.nonce,
+          to: tx.to || null,
+          value: tx.value.toString(),
+          data: tx.data,
+          gasLimit: tx.gasLimit.toString(),
+        };
+        if (tx.maxFeePerGas != null) fields.maxFeePerGas = tx.maxFeePerGas.toString();
+        if (tx.maxPriorityFeePerGas != null) fields.maxPriorityFeePerGas = tx.maxPriorityFeePerGas.toString();
+        if (tx.gasPrice != null) fields.gasPrice = tx.gasPrice.toString();
+        if (tx.signature) {
+          fields.from = tx.from;
+          fields.signedHash = tx.hash;
+          fields.signature = {
+            r: tx.signature.r,
+            s: tx.signature.s,
+            yParity: tx.signature.yParity,
+            v: tx.signature.v,
+          };
+        }
+        return fields;
+      }
+
+      function inspectDataNote(tx) {
+        const data = tx.data || "0x";
+        const bytes = ethers.dataLength(data);
+        if (!tx.to) {
+          return "Contract creation — there is no to address; the " + bytes + "-byte deployment bytecode is in data.";
+        }
+        if (bytes === 0) return "";
+        const selector = data.slice(0, 10).toLowerCase();
+        if (selector === "0xa9059cbb" && bytes === 68) {
+          try {
+            const decoded = ERC20.parseTransaction({ data, value: tx.value });
+            return "ERC-20 transfer → " + decoded.args[0] + ", " + decoded.args[1].toString() + " base units. The tx is sent to token contract " + tx.to + ".";
+          } catch {
+            // fall through to the generic selector note
+          }
+        }
+        return "Calldata selector " + selector + " · " + bytes + " bytes. The raw bytes are in the decoded JSON.";
+      }
+
+      function renderInspect(result) {
+        const { tx, kind } = result;
+        const chainId = tx.chainId != null ? Number(tx.chainId) : null;
+        const rlp = tx.unsignedSerialized;
+        $("inspectType").textContent = txTypeLabel(tx.type).split(" · ")[0];
+        $("inspectChain").textContent = chainId != null ? String(chainId) : "—";
+        $("inspectNonce").textContent = String(tx.nonce);
+        $("inspectKind").textContent = kind;
+        setCode("inspectHash", tx.unsignedHash);
+        setCode("inspectJson", JSON.stringify(inspectFields(tx), null, 2));
+        setCode("inspectRlp", rlp);
+        $("inspectRlpMeta").textContent = ethers.dataLength(rlp) + " bytes · chain " + (chainId != null ? chainId : "—");
+        const note = inspectDataNote(tx);
+        $("inspectData").hidden = !note;
+        $("inspectData").textContent = note;
+        $("inspectResult").hidden = false;
+        setInspectStatus(
+          tx.signature
+            ? "Signed transaction decoded — signature and recovered sender are in the JSON."
+            : "Decoded successfully. The hash was recomputed from this unsigned RLP.",
+          tx.signature ? "warn" : "ok",
+        );
+      }
+
+      async function handleInspect() {
+        if (inspectBusy) return;
+        clearInspectError();
+        clearInspectResult();
+        setInspectStatus("");
+
+        let parsed;
+        try {
+          parsed = parseInspectInput($("inspectInput").value);
+        } catch (error) {
+          const message = error.shortMessage || error.message || "Could not decode this transaction.";
+          $("inspectInput").closest(".field").classList.add("is-invalid");
+          $("inspectError").textContent = message;
+          setInspectStatus("Decode failed — check the pasted payload.", "err");
+          toast("Could not decode the transaction.", "error");
+          return;
+        }
+
+        inspectBusy = true;
+        setButtonBusy($("btnInspect"), true, "Decoding…");
+        setInspectStatus("Computing keccak256(RLP(tx))…");
+        try {
+          await wait(220);
+          renderInspect(parsed);
+          toast("Transaction decoded.", "success");
+          scrollToResult("inspectResult");
+        } catch (error) {
+          const message = error.shortMessage || error.message || "Could not decode this transaction.";
+          $("inspectInput").closest(".field").classList.add("is-invalid");
+          $("inspectError").textContent = message;
+          setInspectStatus("Decode failed.", "err");
+          toast(message, "error");
+        } finally {
+          inspectBusy = false;
+          setButtonBusy($("btnInspect"), false);
+        }
+      }
+
+      $("btnInspect").addEventListener("click", handleInspect);
+
+      $("inspectInput").addEventListener("input", () => {
+        clearInspectError();
+        if (!$("inspectResult").hidden) {
+          clearInspectResult();
+          setInspectStatus("Input changed — decode again.", "warn");
+        }
+      });
+
+      $("btnInspectClear").addEventListener("click", () => {
+        $("inspectInput").value = "";
+        clearInspectError();
+        clearInspectResult();
+        setInspectStatus("");
+        $("inspectInput").focus();
+      });
+
+      $("btnInspectFromFlow").addEventListener("click", () => {
+        if (!flow.unsignedSerialized) {
+          toast("Build a transaction in Collect first.", "warn");
+          return;
+        }
+        $("inspectInput").value = flow.unsignedSerialized;
+        clearInspectError();
+        handleInspect();
+      });
+
+      /* ---------- collect: form state ---------- */
+
+      function readForm() {
+        return {
+          to: $("to").value.trim(),
+          amount: $("amount").value.trim(),
+          nonce: $("nonce").value.trim(),
+          tokenId: $("tokenId").value.trim(),
+          contract: $("contract").value.trim(),
+          chainId: $("chainId").value.trim(),
+          gasLimit: $("gasLimit").value.trim(),
+          maxFee: $("maxFee").value.trim(),
+          priorityFee: $("priorityFee").value.trim(),
+          gasPrice: $("gasPrice").value.trim(),
+          feeModel: feeModel,
+        };
+      }
+
+      function updateAmountHint() {
+        const raw = $("amount").value.trim();
+        const erc20 = $("contract").value.trim() !== "";
+        const hint = $("amountHint");
+        if (!raw) {
+          hint.textContent = erc20
+            ? "Token base units — decimals come from the token."
+            : "Base units — 10¹⁸ wei = 1 ETH.";
+          return;
+        }
+        if (!ATOMIC.test(raw)) {
+          hint.textContent = erc20 ? "Token base units (integer)." : "Base units (integer).";
+          return;
+        }
+        if (erc20) {
+          hint.textContent = "Token base units — check the token's decimals.";
+          return;
+        }
+        hint.textContent = "≈ " + formatEth(raw);
+      }
+
+      function updateGasHint() {
+        $("gasLimitHint").textContent = $("contract").value.trim()
+          ? "Leave empty to use 65000 for ERC-20 transfers."
+          : "Leave empty to use 21000 for native ETH.";
+      }
+
+      function updateFeeWarning() {
+        const warn = $("feeWarn");
+        if (feeModel !== "eip1559") {
+          warn.hidden = true;
+          return;
+        }
+        try {
+          const cap = BigInt($("maxFee").value || "1000000000");
+          const tip = BigInt($("priorityFee").value || "1000000000");
+          warn.hidden = tip <= cap;
+        } catch {
+          warn.hidden = true;
+        }
+      }
+
+      function validateCollect(values) {
+        const errors = {};
+
+        if (!values.to) errors.to = "Recipient is required.";
+        else if (!ethers.isAddress(values.to)) errors.to = "Not a valid 0x address.";
+
+        if (!values.amount) errors.amount = "Amount is required.";
+        else if (!ATOMIC.test(values.amount)) errors.amount = "Use whole atomic units — no decimals or separators.";
+
+        if (!TOKEN_ID.test(values.tokenId)) errors.tokenId = "Use a positive integer.";
+
+        if (values.contract && !ethers.isAddress(values.contract)) {
+          errors.contract = "Not a valid contract address.";
+        }
+
+        if (values.nonce && (!UINT.test(values.nonce) || !Number.isSafeInteger(Number(values.nonce)))) {
+          errors.nonce = "Nonce must be an integer ≥ 0.";
+        }
+
+        if (values.chainId && (!UINT_POS.test(values.chainId) || !Number.isSafeInteger(Number(values.chainId)))) {
+          errors.chainId = "Chain id must be a positive integer.";
+        }
+
+        if (values.gasLimit && !UINT_POS.test(values.gasLimit)) {
+          errors.gasLimit = "Gas limit must be a positive integer.";
+        }
+
+        if (values.feeModel === "legacy") {
+          if (values.gasPrice && !UINT.test(values.gasPrice)) errors.gasPrice = "Integer wei amount.";
+        } else {
+          if (values.maxFee && !UINT.test(values.maxFee)) errors.maxFee = "Integer wei amount.";
+          if (values.priorityFee && !UINT.test(values.priorityFee)) {
+            errors.priorityFee = "Integer wei amount.";
+          }
+        }
+
+        return errors;
+      }
+
+      function clearFieldErrors() {
+        $$("#txForm .field.is-invalid").forEach((field) => field.classList.remove("is-invalid"));
+        $$("#txForm .field-err").forEach((el) => { el.textContent = ""; });
+        $("buildError").hidden = true;
+      }
+
+      function showFieldErrors(errors) {
+        const entries = Object.entries(errors);
+        entries.forEach(([key, message]) => {
+          const field = document.querySelector('[data-field="' + key + '"]');
+          if (!field) return;
+          field.classList.add("is-invalid");
+          const el = field.querySelector(".field-err");
+          if (el) el.textContent = message;
+        });
+        const firstField = document.querySelector('[data-field="' + entries[0][0] + '"]');
+        const input = firstField ? firstField.querySelector("input") : null;
+        if (input) {
+          input.focus({ preventScroll: true });
+          input.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
+        }
+      }
+
+      /* ---------- collect: transaction ---------- */
+
+      function constructTransaction(values) {
+        const isErc20 = values.contract !== "";
+        const amount = BigInt(values.amount);
+        const nonce = Number(values.nonce || "0");
+        const chainId = Number(values.chainId || "1");
+        const gasLimit = BigInt(values.gasLimit || (isErc20 ? "65000" : "21000"));
+        const recipient = ethers.getAddress(values.to);
+        const contract = isErc20 ? ethers.getAddress(values.contract) : "";
+        const data = isErc20 ? ERC20.encodeFunctionData("transfer", [recipient, amount]) : "0x";
+        const to = isErc20 ? contract : recipient;
+        const value = isErc20 ? 0n : amount;
+
+        const base = { to, data, nonce, gasLimit, chainId };
+        let request;
+
+        if (values.feeModel === "legacy") {
+          request = { type: 0, ...base, value, gasPrice: BigInt(values.gasPrice || "1000000000") };
+        } else {
+          request = {
+            type: 2,
+            ...base,
+            value,
+            maxFeePerGas: BigInt(values.maxFee || "1000000000"),
+            maxPriorityFeePerGas: BigInt(values.priorityFee || "1000000000"),
+          };
+        }
+
+        const tx = ethers.Transaction.from(request);
+        const txJson = {
+          type: tx.type,
+          chainId: Number(tx.chainId),
+          nonce: tx.nonce,
+          to: tx.to,
+          value: tx.value.toString(),
+          data: tx.data,
+          gasLimit: tx.gasLimit.toString(),
+          ...(tx.type === 2
+            ? {
+                maxFeePerGas: tx.maxFeePerGas.toString(),
+                maxPriorityFeePerGas: tx.maxPriorityFeePerGas.toString(),
+              }
+            : { gasPrice: tx.gasPrice.toString() }),
+        };
+        const maxGasWei = tx.gasLimit * (tx.type === 2 ? tx.maxFeePerGas : tx.gasPrice);
+
+        return {
+          request,
+          tx,
+          txJson,
+          isErc20,
+          recipient,
+          contract,
+          maxGasEth: formatEth(maxGasWei.toString()),
+          decoded: isErc20 ? "transfer(" + recipient + ", " + amount.toString() + ")" : "",
+        };
+      }
+
+      function applyBuilt(values, built) {
+        flow.built = true;
+        flow.hashed = false;
+        flow.signed = false;
+        flow.values = values;
+        flow.snapshot = JSON.stringify(values);
+        flow.request = built.request;
+        flow.tx = built.tx;
+        flow.isErc20 = built.isErc20;
+        flow.recipient = built.recipient;
+        flow.contract = built.contract;
+        flow.unsignedSerialized = built.tx.unsignedSerialized;
+        flow.unsignedHash = "";
+        flow.signedTx = "";
+        flow.signedTxHash = "";
+        flow.signature = null;
+        flow.recovered = "";
+        flow.item = null;
+        flow.itemText = "";
+        flow.requestText = "";
+
+        ["result-2", "result-3", "result-4"].forEach((id) => { $(id).hidden = true; });
+        ["unsignedHash", "unsignedRlp", "signedTx", "signedTxHash", "signatureJson", "itemJson", "requestJson"].forEach((id) => {
+          setCode(id, "");
+        });
+        $("buildError").hidden = true;
+        $("hashChip").textContent = "—";
+
+        setCode("txJsonPreview", JSON.stringify(built.txJson, null, 2));
+        $("txTypeChip").textContent = built.tx.type === 2 ? "EIP-1559 · type 2" : "Legacy · type 0";
+        $("factMode").textContent = built.isErc20 ? "ERC-20 transfer" : "Native ETH";
+        $("factFee").textContent = built.tx.type === 2 ? "EIP-1559" : "Legacy";
+        $("factGas").textContent = built.maxGasEth;
+        $("factSigner").textContent = wallet ? shortAddress(wallet.address) : "Not loaded";
+        $("factSigner").classList.toggle("muted", !wallet);
+        $("erc20Note").hidden = !built.isErc20;
+        if (built.isErc20) {
+          $("erc20Note").textContent =
+            "Calldata → " + built.decoded + ". The tx is sent to the token contract " +
+            shortAddress(built.contract) + "; the recipient is encoded in data.";
+        }
+        $("result-1").hidden = false;
+        updateFlowUI();
+      }
+
+      function renderHash() {
+        flow.unsignedSerialized = flow.tx.unsignedSerialized;
+        flow.unsignedHash = flow.tx.unsignedHash;
+        setCode("unsignedHash", flow.unsignedHash);
+        setCode("unsignedRlp", flow.unsignedSerialized);
+        $("rlpMeta").textContent =
+          ethers.dataLength(flow.unsignedSerialized) + " bytes · chain " + flow.tx.chainId.toString();
+        $("hashChip").textContent = shortHash(flow.unsignedHash);
+        $("result-2").hidden = false;
+      }
+
+      function renderSignature() {
+        setCode("signedTx", flow.signedTx);
+        setCode("signedTxHash", flow.signedTxHash);
+        setCode("signatureJson", JSON.stringify(flow.signature, null, 2));
+        $("verifyText").textContent =
+          "Recovered signer " + flow.recovered + " matches the loaded wallet.";
+        $("hashChip").textContent = shortHash(flow.unsignedHash);
+        $("result-3").hidden = false;
+      }
+
+      function renderExport() {
+        setCode("itemJson", flow.itemText);
+        setCode("requestJson", flow.requestText);
+        $("result-4").hidden = false;
+      }
+
+      function clearSignature() {
+        flow.signed = false;
+        flow.signedTx = "";
+        flow.signedTxHash = "";
+        flow.signature = null;
+        flow.recovered = "";
+        flow.item = null;
+        flow.itemText = "";
+        flow.requestText = "";
+        ["result-3", "result-4"].forEach((id) => { $(id).hidden = true; });
+        ["signedTx", "signedTxHash", "signatureJson", "itemJson", "requestJson"].forEach((id) => {
+          setCode(id, "");
+        });
+        updateFlowUI();
+      }
+
+      function resetFlow(showToast) {
+        flow.built = false;
+        flow.hashed = false;
+        flow.signed = false;
+        flow.values = null;
+        flow.snapshot = "";
+        flow.request = null;
+        flow.tx = null;
+        flow.isErc20 = false;
+        flow.recipient = "";
+        flow.contract = "";
+        flow.unsignedSerialized = "";
+        flow.unsignedHash = "";
+        flow.signedTx = "";
+        flow.signedTxHash = "";
+        flow.signature = null;
+        flow.recovered = "";
+        flow.item = null;
+        flow.itemText = "";
+        flow.requestText = "";
+
+        ["result-1", "result-2", "result-3", "result-4", "buildError"].forEach((id) => {
+          $(id).hidden = true;
+        });
+        ["txJsonPreview", "unsignedHash", "unsignedRlp", "signedTx", "signedTxHash", "signatureJson", "itemJson", "requestJson"].forEach((id) => {
+          setCode(id, "");
+        });
+        $("hashChip").textContent = "—";
+        clearFieldErrors();
+        updateFlowUI();
+        if (showToast) toast("Flow reset. Form values are kept.", "success");
+      }
+
+      /* ---------- collect: UI state ---------- */
+
+      function setStepState(n, state, label) {
+        const card = $("step-" + n);
+        card.classList.toggle("is-locked", state === "locked");
+        card.classList.toggle("is-done", state === "done");
+        card.classList.toggle("is-current", state === "ready");
+        const pill = $("status-" + n);
+        pill.className = "pill " + state;
+        pill.textContent = label;
+        card.querySelector(".step-number").textContent = state === "done" ? "✓" : String(n);
+      }
+
+      function updateFlowUI() {
+        const completed = [flow.built, flow.hashed, flow.signed];
+        const unlocked = [true, flow.built, flow.hashed, flow.signed];
+
+        setStepState(1, flow.built ? "done" : "ready", flow.built ? "Built" : "Ready");
+        setStepState(2, !flow.built ? "locked" : flow.hashed ? "done" : "ready",
+          !flow.built ? "Locked" : flow.hashed ? "Hashed" : "Ready");
+        setStepState(3, !flow.hashed ? "locked" : flow.signed ? "done" : "ready",
+          !flow.hashed ? "Locked" : flow.signed ? "Signed" : "Ready");
+        setStepState(4, flow.signed ? "ready" : "locked", flow.signed ? "Ready" : "Locked");
+
+        const steps = $$(".stepper-step");
+        steps.forEach((step, index) => {
+          step.classList.toggle("done", completed[index]);
+          step.classList.toggle("current", !completed[index] && unlocked[index]);
+          step.classList.toggle("locked", !unlocked[index]);
+          step.disabled = !unlocked[index];
+          step.querySelector(".node-dot").textContent = completed[index] ? "✓" : String(index + 1);
+        });
+        const completedCount = completed.filter(Boolean).length;
+        $("stepperFill").style.width = (completedCount / 3) * 100 + "%";
+
+        $("lock-2").hidden = flow.built;
+        $("body-2").hidden = !flow.built;
+        $("lock-3").hidden = flow.hashed;
+        $("body-3").hidden = !flow.hashed;
+        $("lock-4").hidden = flow.signed;
+        $("body-4").hidden = !flow.signed;
+
+        $("btnHash").disabled = !flow.built || flow.hashed || flow.busy;
+        $("btnSign").disabled = !flow.hashed || flow.signed || !wallet || flow.busy;
+        $("signGate").hidden = Boolean(wallet);
+        $("signerChip").textContent = wallet ? shortAddress(wallet.address) : "no wallet";
+        $("signerChip").classList.toggle("empty", !wallet);
+        $("hashChip").textContent = flow.unsignedHash ? shortHash(flow.unsignedHash) : "—";
+        $("collectBadge").textContent = flow.signed ? "signed" : "4 steps";
+        $("collectBadge").classList.toggle("ok", flow.signed);
+        $("btnInspectFromFlow").disabled = !flow.unsignedSerialized;
+
+        if (flow.built) {
+          $("factSigner").textContent = wallet ? shortAddress(wallet.address) : "Not loaded";
+          $("factSigner").classList.toggle("muted", !wallet);
+        }
+      }
+
+      /* ---------- collect: actions ---------- */
+
+      function onFormChanged() {
+        updateAmountHint();
+        updateGasHint();
+        updateFeeWarning();
+        if (!flow.built) return;
+        if (JSON.stringify(readForm()) === flow.snapshot) return;
+        const wasSigned = flow.signed;
+        resetFlow(false);
+        toast(
+          wasSigned
+            ? "Inputs changed — the signed payload was cleared. Rebuild to start again."
+            : "Inputs changed — rebuild the transaction.",
+          "warn",
+        );
+      }
+
+      async function handleBuild(event) {
+        event.preventDefault();
+        if (flow.busy) return;
+
+        clearFieldErrors();
+        const values = readForm();
+        const errors = validateCollect(values);
+        if (Object.keys(errors).length) {
+          showFieldErrors(errors);
+          toast("Fix the highlighted fields.", "error");
+          return;
+        }
+
+        flow.busy = true;
+        setButtonBusy($("btnBuild"), true, "Building…");
+        try {
+          await wait(260);
+          const built = constructTransaction(values);
+          applyBuilt(values, built);
+          toast("Unsigned transaction built.", "success");
+          scrollToResult("result-1");
+        } catch (error) {
+          $("buildError").textContent = error.shortMessage || error.message || "Could not build the transaction.";
+          $("buildError").hidden = false;
+          toast("Build failed.", "error");
+        } finally {
+          flow.busy = false;
+          setButtonBusy($("btnBuild"), false);
+          updateFlowUI();
+        }
+      }
+
+      async function handleHash() {
+        if (!flow.built || flow.hashed || flow.busy) return;
+
+        flow.busy = true;
+        setButtonBusy($("btnHash"), true, "Hashing…");
+        try {
+          await wait(300);
+          flow.hashed = true;
+          renderHash();
+          updateFlowUI();
+          toast("Unsigned hash computed.", "success");
+          scrollToResult("result-2");
+        } catch (error) {
+          toast(error.message || "Could not hash the transaction.", "error");
+        } finally {
+          flow.busy = false;
+          setButtonBusy($("btnHash"), false);
+          updateFlowUI();
+        }
+      }
+
+      async function handleSign() {
+        if (!flow.hashed || flow.signed || flow.busy) return;
+        if (!wallet) {
+          toast("Load or generate a wallet first.", "warn");
+          switchTab("wallet");
+          return;
+        }
+
+        flow.busy = true;
+        setButtonBusy($("btnSign"), true, "Signing…");
+        try {
+          await wait(340);
+          const rawSigned = await wallet.signTransaction(flow.request);
+          const parsed = ethers.Transaction.from(rawSigned);
+          const signature = parsed.signature;
+          const recovered = parsed.from;
+
+          if (!signature) throw new Error("The signed transaction has no signature.");
+          if (!recovered || recovered.toLowerCase() !== wallet.address.toLowerCase()) {
+            throw new Error("Recovered signer does not match the loaded wallet.");
+          }
+          if (parsed.unsignedHash !== flow.unsignedHash) {
+            throw new Error("The signed payload hash does not match step 2.");
+          }
+
+          flow.signedTx = rawSigned;
+          flow.signedTxHash = parsed.hash;
+          flow.signature = {
+            r: signature.r,
+            s: signature.s,
+            yParity: signature.yParity,
+            v: signature.v,
+          };
+          flow.recovered = recovered;
+          flow.item = {
+            from_address: wallet.address.toLowerCase(),
+            to_address: flow.values.to.toLowerCase(),
+            token_id: flow.values.tokenId,
+            amount: flow.values.amount,
+            nonce: Number(flow.values.nonce || "0"),
+            signed_tx: rawSigned,
+          };
+          flow.itemText = JSON.stringify(flow.item, null, 2);
+          flow.requestText = JSON.stringify({ items: [flow.item] }, null, 2);
+          flow.signed = true;
+
+          renderSignature();
+          renderExport();
+          updateFlowUI();
+          toast("Signature verified — final JSON is ready.", "success");
+          scrollToStep(4);
+        } catch (error) {
+          toast(error.shortMessage || error.message || "Signing failed.", "error");
+        } finally {
+          flow.busy = false;
+          setButtonBusy($("btnSign"), false);
+          updateFlowUI();
+        }
+      }
+
+      /* ---------- wiring ---------- */
+
+      $("txForm").addEventListener("submit", handleBuild);
+      $("btnHash").addEventListener("click", handleHash);
+      $("btnSign").addEventListener("click", handleSign);
+
+      ["to", "amount", "nonce", "tokenId", "contract", "chainId", "gasLimit", "maxFee", "priorityFee", "gasPrice"].forEach((id) => {
+        $(id).addEventListener("input", onFormChanged);
+      });
+
+      $("feeModel").addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-model]");
+        if (!btn || btn.dataset.model === feeModel) return;
+        feeModel = btn.dataset.model;
+        const legacy = feeModel === "legacy";
+
+        $$("#feeModel [data-model]").forEach((el) => {
+          const active = el.dataset.model === feeModel;
+          el.classList.toggle("active", active);
+          el.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+
+        $("fieldMaxFee").hidden = legacy;
+        $("fieldPriority").hidden = legacy;
+        $("fieldGasPrice").hidden = !legacy;
+        $("feeModelHint").textContent = legacy
+          ? "A single gasPrice. Used by pre-EIP-1559 chains and simpler setups."
+          : "Base fee + priority fee. The modern default.";
+        if (legacy && !$("gasPrice").value.trim()) $("gasPrice").value = "1000000000";
+        onFormChanged();
+      });
+
+      $("btnOpenWallet").addEventListener("click", () => {
+        switchTab("wallet");
+        setTimeout(() => $("btnGenerate").focus(), 80);
+      });
+
+      $("btnGotoExport").addEventListener("click", () => scrollToStep(4));
+
+      $$(".stepper-step").forEach((step) => {
+        step.addEventListener("click", () => scrollToStep(Number(step.dataset.goto)));
+      });
+
+      $("btnResetFlow").addEventListener("click", () => {
+        if (!flow.built) {
+          toast("Nothing to reset yet.", "info");
+          return;
+        }
+        if (flow.signed && !window.confirm("Reset the flow? The signed payload will be cleared.")) return;
+        resetFlow(true);
+        scrollToStep(1);
+      });
+
+      $("btnDownloadItem").addEventListener("click", () => {
+        if (!flow.itemText) return;
+        download("collect-item.json", flow.itemText);
+      });
+
+      $("btnDownloadRequest").addEventListener("click", () => {
+        if (!flow.requestText) return;
+        download("collect-request.json", flow.requestText);
+      });
+
+      updateAmountHint();
+      updateGasHint();
+      updateFeeWarning();
+      updateFlowUI();
+    })();
   </script>
 </body>
 </html>
